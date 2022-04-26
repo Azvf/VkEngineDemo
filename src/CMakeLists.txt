@@ -2,10 +2,11 @@ cmake_minimum_required(VERSION 3.12)
 
 project(VkEngineDemo)
 
-add_executable(${PROJECT_NAME} main.cpp)
-
 include_directories(${CMAKE_SOURCE_DIR}/vk-bootstrap/src)
-message(STATUS "vkb path: ${CMAKE_SOURCE_DIR}/vk-bootstrap/src")
+
+add_executable(${PROJECT_NAME} main.cpp ../stb/stb_image.h)
+
+message(STATUS "vkb path: ${CMAKE_SOURCE_DIR}")
 
 # Vulkan
 find_package(Vulkan REQUIRED)
