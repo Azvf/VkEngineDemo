@@ -4,7 +4,7 @@ project(VkEngineDemo)
 
 include_directories(${CMAKE_SOURCE_DIR}/vk-bootstrap/src)
 
-add_executable(${PROJECT_NAME} main.cpp ../stb/stb_image.h)
+add_executable(${PROJECT_NAME} main.cpp ../ThirdParty/stb/stb_image.h ../ThirdParty/tinyobjloader/tiny_obj_loader.h)
 
 message(STATUS "vkb path: ${CMAKE_SOURCE_DIR}")
 
