@@ -10,28 +10,18 @@ namespace vulkan {
 		VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, VkImageViewType viewType, const VkImageSubresourceRange& subresourceRange)
 		: m_physicalDevice(physicalDevice), m_device(device)
 	{
-		createImage(createInfo, requiredFlags, m_image, m_memory);
-	}
+		createImage(m_physicalDevice, m_device, createInfo, requiredFlags, m_image, m_memory);
+	    
+        VkImageViewCreateInfo viewCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+        viewCreateInfo.viewType = viewType;
+        viewCreateInfo.image = m_image;
+        viewCreateInfo.format = createInfo.format;
+        viewCreateInfo.subresourceRange = subresourceRange;
 
-    void Image::createImage(const VkImageCreateInfo& imageInfo, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-        
-        if (vkCreateImage(m_device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image!");
+        if (vkCreateImageView(m_device, &viewCreateInfo, nullptr, &m_view) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create image view!");
         }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(m_device, image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(m_physicalDevice, memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate image memory!");
-        }
-
-        vkBindImageMemory(m_device, image, imageMemory, 0);
     }
 
     Image::~Image() {

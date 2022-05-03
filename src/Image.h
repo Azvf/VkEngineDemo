@@ -22,9 +22,6 @@ namespace vulkan
 		const VkDeviceMemory& getMemory() const;
 
 	private:
-		void Image::createImage(const VkImageCreateInfo& imageInfo, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-	
-	private:
 		VkPhysicalDevice m_physicalDevice;
 		VkDevice m_device;
 		VkImage m_image;
