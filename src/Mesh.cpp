@@ -4,6 +4,9 @@
 #include <vector>
 
 namespace vulkan {
+	std::shared_ptr<Mesh> Mesh::load(const std::vector<Vertex>& vertices) {
+		return std::shared_ptr<Mesh>();
+	}
 
 	std::shared_ptr<Mesh> Mesh::load(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool cmdPool,
 		const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
@@ -20,7 +23,7 @@ namespace vulkan {
 		{
 			VkBufferCreateInfo createInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 			createInfo.size = vertexBufferSize;
-			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 			createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			VkBuffer stagingBuffer;
@@ -32,6 +35,7 @@ namespace vulkan {
 			memcpy(data, vertices.data(), (size_t)vertexBufferSize);
 			vkUnmapMemory(device, stagingBufferMemory);
 
+			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 			createBuffer(physicalDevice, device, createInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mesh->m_vertexBuffer, mesh->m_vertexBufferMemory);
 
 			copyBuffer(device, cmdPool, queue, stagingBuffer, mesh->m_vertexBuffer, vertexBufferSize);
@@ -48,7 +52,7 @@ namespace vulkan {
 			VkBufferCreateInfo createInfo{};
 			createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			createInfo.size = indexBufferSize;
-			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 			createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 			createBuffer(physicalDevice, device, createInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
@@ -58,6 +62,7 @@ namespace vulkan {
 			memcpy(data, indices.data(), (size_t)indexBufferSize);
 			vkUnmapMemory(device, stagingBufferMemory);
 
+			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 			createBuffer(physicalDevice, device, createInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mesh->m_indexBuffer, mesh->m_indexBufferMemory);
 
 			copyBuffer(device, cmdPool, queue, stagingBuffer, mesh->m_indexBuffer, indexBufferSize);

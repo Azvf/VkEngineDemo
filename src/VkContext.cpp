@@ -191,6 +191,11 @@ namespace vulkan {
         return m_graphicsQueue;
     }
 
+    VkQueue VKContext::getPresentQueue() const
+    {
+        return m_presentQueue;
+    }
+
     VkCommandPool VKContext::getGraphicsCommandPool() const
     {
         return m_graphicsCommandPool;

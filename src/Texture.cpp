@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
 #include "VkUtil.h"
@@ -70,6 +71,21 @@ namespace vulkan {
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			texture->m_image, texture->m_deviceMemory
 		);
+
+		VkImageViewCreateInfo viewInfo{};
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.image = texture->m_image;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewInfo.format = texture->m_format;
+		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		viewInfo.subresourceRange.baseMipLevel = 0;
+		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.baseArrayLayer = 0;
+		viewInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(device, &viewInfo, nullptr, &texture->m_view) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create texture image view!");
+		}
 
 		transitionImageLayout(device, queue, cmdPool, texture->m_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 		copyBufferToImage(device, queue, cmdPool, stagingBuffer, texture->m_image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));

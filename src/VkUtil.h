@@ -10,8 +10,6 @@
 #include <glm/glm.hpp>
 
 namespace vulkan {
-    const int MAX_FRAMES_IN_FLIGHT = 2;
-
     // Util
     std::vector<char> readFile(const std::string& filename);
 

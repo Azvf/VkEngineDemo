@@ -30,6 +30,7 @@ namespace vulkan {
 		VkDevice getDevice() const;
 		VkPhysicalDevice getPhysicalDevice() const;
 		VkQueue getGraphicsQueue() const;
+		VkQueue getPresentQueue() const;
 		VkCommandPool getGraphicsCommandPool() const;
 		VkSurfaceKHR getSurface() const;
 		// VkPhysicalDeviceFeatures getDeviceFeatures() const;

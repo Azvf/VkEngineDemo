@@ -5,10 +5,23 @@
 
 #include <utility>
 
-namespace vulkan
-{
-	namespace LightingPipeline
-	{
-		std::pair<VkPipeline, VkPipelineLayout> create(VkDevice device, VkRenderPass renderPass, uint32_t subpassIndex, uint32_t setLayoutCount, VkDescriptorSetLayout* descriptorSetLayout);
-	}
+namespace vulkan {
+
+	class Pipeline {
+	public:
+		explicit Pipeline(VkPhysicalDevice physicalDevice, VkDevice device, uint32_t width, uint32_t height, VkExtent2D extent, VkDescriptorSetLayout descriptorSetLayout, VkRenderPass renderPass);
+		~Pipeline();
+	
+	public:
+		VkPipeline getPipeline() const;
+		VkPipelineLayout getPipelineLayout() const;
+
+	private:
+		VkPhysicalDevice m_physicalDevice;
+		VkDevice m_device;
+
+		VkPipelineLayout m_pipelineLayout;
+		VkPipeline m_graphicsPipeline;
+	};
+
 }
