@@ -4,7 +4,42 @@ project(VkEngineDemo)
 
 include_directories(${CMAKE_SOURCE_DIR}/vk-bootstrap/src)
 
-add_executable(${PROJECT_NAME} main.cpp ../ThirdParty/stb/stb_image.h ../ThirdParty/tinyobjloader/tiny_obj_loader.h)
+add_executable(${PROJECT_NAME} 
+    RenderCfg.h
+    VkContext.h
+    VkContext.cpp
+    VkUtil.h
+    VkUtil.cpp
+    Buffer.h
+    Buffer.cpp
+    Image.h
+    Image.cpp
+    SwapChain.h
+    SwapChain.cpp
+    Mesh.h
+    Mesh.cpp
+    Texture.h
+    Texture.cpp
+    RenderResources.h
+    RenderResources.cpp
+    Pipeline.h
+    Pipeline.cpp
+    Renderer.h
+    Renderer.cpp
+    Window.h
+    Window.cpp
+    Descriptor.h
+    Descriptor.cpp
+    Sampler.h
+    Sampler.cpp
+    Uniform.h
+    Uniform.cpp
+    Engine.h
+    Engine.cpp
+    VkEngineDemo.cpp
+    ../ThirdParty/stb/stb_image.h 
+    ../ThirdParty/tinyobjloader/tiny_obj_loader.h
+)
 
 message(STATUS "vkb path: ${CMAKE_SOURCE_DIR}")
 
