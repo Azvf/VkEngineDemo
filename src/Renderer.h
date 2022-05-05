@@ -41,16 +41,15 @@ namespace vulkan {
 
 	private:
 		VKContext m_context;
-		SwapChain m_swapChain;
-		
 		Uniform m_uniform;
 		Sampler m_sampler;
-
+		SwapChain m_swapChain;
+		
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
 
-		std::shared_ptr<Mesh> m_mesh;
 		std::shared_ptr<Texture> m_texture;
+		std::shared_ptr<Mesh> m_mesh;
 		std::shared_ptr<Descriptor> m_descriptor;
 		std::shared_ptr<Pipeline> m_pipeline;
 
