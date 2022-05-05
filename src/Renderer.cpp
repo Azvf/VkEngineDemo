@@ -160,10 +160,10 @@ namespace vulkan {
         vkWaitForFences(device, 1, &m_inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(device, m_swapChain, UINT64_MAX, m_imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device, m_swapChain.getSwapchain(), UINT64_MAX, m_imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-            m_swapChain.recreate(m_width, m_height);
+            // m_swapChain.recreate(m_width, m_height);
             return;
         }
         else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -206,14 +206,12 @@ namespace vulkan {
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
-        // specify an array of VkResult values to check for every individual swap chain if presentation was successful
-        presentInfo.pResults = nullptr; // Optional
 
         result = vkQueuePresentKHR(m_context.getPresentQueue(), &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;
-            m_swapChain.recreate(m_width, m_height);
+            // m_swapChain.recreate(m_width, m_height);
         }
         else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");
@@ -227,20 +225,6 @@ namespace vulkan {
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        /**
-        * @flags:
-        *   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be rerecorded right after executing it once.
-        *   VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary command buffer that will be entirely within a single render pass.
-        *   VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be resubmitted while it is also already pending execution.
-        */
-        beginInfo.flags = 0; // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
-
-        /**
-        * If the command buffer was already recorded once,
-        * then a call to vkBeginCommandBuffer will implicitly reset it.
-        * It's not possible to append commands to a buffer at a later time.
-        */
         if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer!");
         }
@@ -260,32 +244,18 @@ namespace vulkan {
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
-        /**
-        * VK_SUBPASS_CONTENTS_INLINE:
-        *    The render pass commands will be embedded in the primary command buffer itself and no secondary command buffers will be executed.
-        * VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS:
-        *    The render pass commands will be executed from secondary command buffers.
-        */
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->getPipeline());
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->getPipeline());
+            VkBuffer vertexBuffers[] = { m_mesh->getVertexBuffer() };
+            VkDeviceSize offsets[] = { 0 };
 
-        VkBuffer vertexBuffers[] = { m_mesh->getVertexBuffer() };
-        VkDeviceSize offsets[] = { 0 };
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, m_mesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->getPipelineLayout(), 0, 1, &m_descriptor->getDescriptorSet(currentFrame), 0, nullptr);
 
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_mesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->getPipelineLayout(), 0, 1, &m_descriptor->getDescriptorSet(currentFrame), 0, nullptr);
-        /**
-        * @param1: vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-        * @param2: instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-        * @param3: firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-        * @param4: firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-        */
-        // vkCmdDraw(commandBuffers, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_mesh->getIndexCount()), 1, 0, 0, 0);
-
-        vkCmdEndRenderPass(commandBuffer);
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+         vkCmdEndRenderPass(commandBuffer);
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer!");
@@ -311,7 +281,7 @@ namespace vulkan {
     }
 
     void Renderer::createDescriptor() {
-        m_descriptor = std::make_shared<Descriptor>(m_context.getDevice(), m_uniform, m_texture->getView(), m_sampler);
+        m_descriptor = std::make_shared<Descriptor>(m_context.getDevice(), m_texture->getView(), m_uniform, m_sampler);
     }
 
     void Renderer::createPipleline()
