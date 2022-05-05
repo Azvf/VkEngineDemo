@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.12)
 
 project(VkEngineDemo)
 
-include_directories(${CMAKE_SOURCE_DIR}/vk-bootstrap/src)
-
 add_executable(${PROJECT_NAME} 
     RenderCfg.h
     VkContext.h
@@ -60,7 +58,7 @@ target_link_libraries (${PROJECT_NAME} PRIVATE ${GLFW_LIBRARIES})
 message(STATUS "GLFW_INCLUDE_DIRS: ${GLFW_INCLUDE_DIRS}")
 message(STATUS "GLFW_LIBRARIES: ${GLFW_LIBRARIES}")
 
-# vk-bootstrap
-link_libraries(${PROJECT_NAME} vk-bootstrap::vk-bootstrap)
+# glm
+include_directories(${CMAKE_SOURCE_DIR}/glm)
 
 
