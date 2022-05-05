@@ -4,10 +4,6 @@
 #include <vector>
 
 namespace vulkan {
-	std::shared_ptr<Mesh> Mesh::load(const std::vector<Vertex>& vertices) {
-		return std::shared_ptr<Mesh>();
-	}
-
 	std::shared_ptr<Mesh> Mesh::load(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool cmdPool,
 		const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 	{
@@ -91,12 +87,12 @@ namespace vulkan {
 		return m_indexCount;
 	}
 
-	VkBuffer Mesh::getVertexBuffer() const
+	const VkBuffer& Mesh::getVertexBuffer() const
 	{
 		return m_vertexBuffer;
 	}
 
-	VkBuffer Mesh::getIndexBuffer() const
+	const VkBuffer& Mesh::getIndexBuffer() const
 	{
 		return m_indexBuffer;
 	}

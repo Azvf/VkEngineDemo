@@ -13,7 +13,6 @@ namespace vulkan
 	class Mesh
 	{
 	public:
-		static std::shared_ptr<Mesh> load(const std::vector<Vertex>& vertices);
         static std::shared_ptr<Mesh> Mesh::load(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool cmdPool,
             const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
         Mesh() = default;
@@ -24,8 +23,8 @@ namespace vulkan
 		~Mesh();
 		uint32_t getVertexCount() const;
 		uint32_t getIndexCount() const;
-		VkBuffer getVertexBuffer() const;
-		VkBuffer getIndexBuffer() const;
+		const VkBuffer& getVertexBuffer() const;
+		const VkBuffer& getIndexBuffer() const;
 
 	private:
 		VkDevice m_device;
