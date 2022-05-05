@@ -11,7 +11,7 @@ namespace vulkan {
 
 	class Descriptor {
 	public:
-		Descriptor(VkDevice device, Uniform uni, VkImageView imageView, Sampler sampler);
+		Descriptor(VkDevice device, VkImageView imageView, const Uniform& uni, const Sampler& sampler);
 		~Descriptor();
 
 	public:
@@ -22,13 +22,13 @@ namespace vulkan {
 	private:
 		void createDescriptorPool();
 		void createDescriptorSetLayout();
-		void createDescriptorSets(Uniform uni, VkImageView imageView, Sampler sampler);
+		void createDescriptorSets(VkImageView imageView, const Uniform& uni, const Sampler& sampler);
 	
 	private:
 		VkDevice m_device;
 
-		VkDescriptorPool m_descriptorPool;
 		VkDescriptorSetLayout m_descriptorSetLayout;
+		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
 	
 	};

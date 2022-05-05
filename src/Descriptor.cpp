@@ -8,12 +8,12 @@
 #include "Sampler.h"
 
 namespace vulkan {
-	Descriptor::Descriptor(VkDevice device, Uniform uni, VkImageView imageView, Sampler sampler)
+	Descriptor::Descriptor(VkDevice device, VkImageView imageView, const Uniform& uni, const Sampler& sampler)
         : m_device(device)
     {
-        createDescriptorPool();
         createDescriptorSetLayout();
-        createDescriptorSets(uni, imageView, sampler);
+        createDescriptorPool();
+        createDescriptorSets(imageView, uni, sampler);
 	}
 
     Descriptor::~Descriptor() {
@@ -37,20 +37,21 @@ namespace vulkan {
     }
 
 	void Descriptor::createDescriptorPool() {
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
         if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
         }
-
 	}
 
     void Descriptor::createDescriptorSetLayout() {
@@ -69,6 +70,7 @@ namespace vulkan {
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
         std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+        
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -79,7 +81,7 @@ namespace vulkan {
         }
     }
 
-	void Descriptor::createDescriptorSets(Uniform uni, VkImageView imageView, Sampler sampler) {
+	void Descriptor::createDescriptorSets(VkImageView imageView, const Uniform& uni, const Sampler& sampler) {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
