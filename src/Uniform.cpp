@@ -28,12 +28,12 @@ namespace vulkan {
         }
 	}
 
-    VkBuffer Uniform::getUniformBuffer(uint32_t index)
+    VkBuffer Uniform::getUniformBuffer(uint32_t index) const
     {
         return m_uniformBuffers[index];
     }
 
-    VkDeviceMemory Uniform::getUniformMemory(uint32_t index)
+    VkDeviceMemory Uniform::getUniformMemory(uint32_t index) const
     {
         return m_uniformBuffersMemory[index];
     }

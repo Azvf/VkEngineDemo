@@ -14,8 +14,8 @@ namespace vulkan {
 		void createUniformBuffers();
 
 	public:
-		VkBuffer getUniformBuffer(uint32_t index);
-		VkDeviceMemory getUniformMemory(uint32_t index);
+		VkBuffer getUniformBuffer(uint32_t index) const;
+		VkDeviceMemory getUniformMemory(uint32_t index) const;
 
 	private:
 		VkPhysicalDevice m_physicalDevice;
