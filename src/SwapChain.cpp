@@ -149,22 +149,12 @@ namespace vulkan {
         renderPassInfo.pSubpasses = &subpass;
 
         VkSubpassDependency dependency{};
-        /**
-        * specify the indices of the dependency and the dependent subpass.
-        * The dstSubpass must always be higher than srcSubpass
-        * to prevent cycles in the dependency graph (unless one of the subpasses is VK_SUBPASS_EXTERNAL).
-        */
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
-        // specify the operations to wait on and the stages in which these operations occur
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.srcAccessMask = 0;
-        /**
-        * The operations that should wait on this are in the color attachment stage and involve the writing of the color attachment
-        * prevent the transition from happening until it's actually necessary (and allowed)
-        */
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
