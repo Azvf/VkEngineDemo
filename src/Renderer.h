@@ -11,6 +11,7 @@
 #include "SwapChain.h"
 #include "Uniform.h"
 #include "Sampler.h"
+#include "SyncResources.h"
 
 namespace vulkan {
 	class Texture;
@@ -37,14 +38,14 @@ namespace vulkan {
 		void createDescriptor();
 		void createPipleline();
 		void createCommandBuffers();
-		void createSyncObjects();
-
+		
 	private:
 		VKContext m_context;
 		Uniform m_uniform;
 		Sampler m_sampler;
 		SwapChain m_swapChain;
-		
+		SyncResources m_syncResrc;
+
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
 
@@ -53,12 +54,8 @@ namespace vulkan {
 		std::shared_ptr<Descriptor> m_descriptor;
 		std::shared_ptr<Pipeline> m_pipeline;
 
-		std::vector<VkSemaphore> m_imageAvailableSemaphores;
-		std::vector<VkSemaphore> m_renderFinishedSemaphores;
-		std::vector<VkFence> m_inFlightFences;
-
 		std::vector<VkCommandBuffer> m_commandBuffers;
-		
+
 		uint32_t m_width, m_height;
 		uint32_t currentFrame = 0;
 

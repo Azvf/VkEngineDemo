@@ -32,7 +32,8 @@ namespace vulkan {
         m_context((GLFWwindow*)windowHandle),
         m_sampler(m_context.getPhysicalDevice(), m_context.getDevice()),
         m_uniform(m_context.getPhysicalDevice(), m_context.getDevice()),
-        m_swapChain(m_context.getPhysicalDevice(), m_context.getDevice(), m_context.getSurface(), m_width, m_height)
+        m_swapChain(m_context.getPhysicalDevice(), m_context.getDevice(), m_context.getSurface(), m_width, m_height),
+        m_syncResrc(m_context.getDevice())
     {
         createAlbedoTexture("../../assets/viking_room/viking_room.png");
         loadObjModel("../../assets/viking_room/viking_room.obj");
@@ -41,32 +42,10 @@ namespace vulkan {
         createPipleline();
 
         createCommandBuffers();
-        createSyncObjects();
     }
 
     void Renderer::createAlbedoTexture(const char* path) {
         m_texture = Texture::load(m_context.getPhysicalDevice(), m_context.getDevice(), m_context.getGraphicsQueue(), m_context.getGraphicsCommandPool(), path);
-    }
-
-    void Renderer::createSyncObjects() {
-        m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(m_context.getDevice(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(m_context.getDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(m_context.getDevice(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create semaphores!");
-            }
-        }
     }
 
     Renderer::~Renderer()
@@ -157,10 +136,10 @@ namespace vulkan {
         
         VkDevice device = m_context.getDevice();
 
-        vkWaitForFences(device, 1, &m_inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(device, 1, &m_syncResrc.getInFlightFence(currentFrame), VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(device, m_swapChain.getSwapchain(), UINT64_MAX, m_imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device, m_swapChain.getSwapchain(), UINT64_MAX, m_syncResrc.getImageAvailSemaphore(currentFrame), VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             // m_swapChain.recreate(m_width, m_height);
@@ -170,7 +149,7 @@ namespace vulkan {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        vkResetFences(device, 1, &m_inFlightFences[currentFrame]);
+        vkResetFences(device, 1, &m_syncResrc.getInFlightFence(currentFrame));
         updateUniformBuffer(currentFrame);
 
         vkResetCommandBuffer(m_commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
@@ -179,7 +158,7 @@ namespace vulkan {
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphores[currentFrame] };
+        VkSemaphore waitSemaphores[] = { m_syncResrc.getImageAvailSemaphore(currentFrame) };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
@@ -188,11 +167,11 @@ namespace vulkan {
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &m_commandBuffers[currentFrame];
 
-        VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphores[currentFrame] };
+        VkSemaphore signalSemaphores[] = { m_syncResrc.getRenderFinishedSemaphore(currentFrame) };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(m_context.getGraphicsQueue(), 1, &submitInfo, m_inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(m_context.getGraphicsQueue(), 1, &submitInfo, m_syncResrc.getInFlightFence(currentFrame)) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -276,7 +255,7 @@ namespace vulkan {
 
         void* data;
         vkMapMemory(m_context.getDevice(), m_uniform.getUniformMemory(currentImage), 0, sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
+            memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(m_context.getDevice(), m_uniform.getUniformMemory(currentImage));
     }
 
