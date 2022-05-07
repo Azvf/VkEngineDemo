@@ -34,6 +34,8 @@ add_executable(${PROJECT_NAME}
     Uniform.cpp
     Engine.h
     Engine.cpp
+    SyncResources.h
+    SyncResources.cpp
     VkEngineDemo.cpp
     ../ThirdParty/stb/stb_image.h 
     ../ThirdParty/tinyobjloader/tiny_obj_loader.h
