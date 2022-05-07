@@ -9,6 +9,7 @@ namespace vulkan {
 	class Uniform {
 	public:
 		Uniform(VkPhysicalDevice physicalDevice, VkDevice device);
+		~Uniform();
 
 	public:
 		void createUniformBuffers();

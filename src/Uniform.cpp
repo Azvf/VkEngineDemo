@@ -10,6 +10,14 @@ namespace vulkan {
         createUniformBuffers();
 	}
 
+    Uniform::~Uniform()
+    {
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
+            vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
+        }
+    }
+
 	void Uniform::createUniformBuffers()
 	{
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
