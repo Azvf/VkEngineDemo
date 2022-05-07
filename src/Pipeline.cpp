@@ -135,6 +135,7 @@ namespace vulkan {
 
     Pipeline::~Pipeline()
     {
+        vkDeviceWaitIdle(m_device);
         vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     }
