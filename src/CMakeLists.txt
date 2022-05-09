@@ -4,6 +4,13 @@ project(VkEngineDemo)
 
 add_executable(${PROJECT_NAME} 
     RenderCfg.h
+    Camera.h
+    ArcBallCamera.h
+    ArcBallCamera.cpp
+    InputTokens.h
+    IInputListener.h
+    UserInput.h
+    UserInput.cpp
     VkContext.h
     VkContext.cpp
     VkUtil.h

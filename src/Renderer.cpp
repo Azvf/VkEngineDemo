@@ -15,6 +15,8 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Pipeline.h"
+#include "ArcBallCamera.h"
+#include "UserInput.h"
 
 namespace std {
     template<> struct hash<vulkan::Vertex> {
@@ -35,6 +37,12 @@ namespace vulkan {
         m_swapChain(m_context.getPhysicalDevice(), m_context.getDevice(), m_context.getSurface(), m_width, m_height),
         m_syncResrc(m_context.getDevice())
     {
+        // Setup a default look-at camera
+        m_camera.type = Camera::CameraType::firstperson;
+        m_camera.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
+        m_camera.setRotation(glm::vec3(0.0f));
+        m_camera.setPerspective(40.0f, width / (float)height, 0.01f, 256.0f);
+
         createAlbedoTexture("../../assets/viking_room/viking_room.png");
         loadObjModel("../../assets/viking_room/viking_room.obj");
 
@@ -118,7 +126,7 @@ namespace vulkan {
         m_mesh = Mesh::load(m_context.getPhysicalDevice(), m_context.getDevice(), m_context.getGraphicsQueue(), m_context.getGraphicsCommandPool(), vertices, indices);
     }
 
-    void Renderer::Render(uint32_t width, uint32_t height) {
+    void Renderer::Render(uint32_t width, uint32_t height, sss::UserInput& userInput) {
         /**
         * Frame Rendering Steps:
         *   Wait for the previous frame to finish
@@ -134,6 +142,8 @@ namespace vulkan {
             framebufferResized = true;
         }
         
+        userInput.input();
+
         VkDevice device = m_context.getDevice();
 
         vkWaitForFences(device, 1, &m_syncResrc.getInFlightFence(currentFrame), VK_TRUE, UINT64_MAX);
@@ -150,6 +160,23 @@ namespace vulkan {
         }
 
         vkResetFences(device, 1, &m_syncResrc.getInFlightFence(currentFrame));
+        
+        const glm::vec2 mouseDelta = userInput.getMousePosDelta() * ((userInput.isMouseButtonPressed(InputMouse::BUTTON_LEFT)) ? 1.0f : 0.0f);
+        const float scrollDelta = userInput.getScrollOffset().y;
+
+        if (userInput.isMouseButtonPressed(InputMouse::BUTTON_LEFT)) {
+            m_camera.rotate(glm::vec3(mouseDelta.y * m_camera.rotationSpeed, mouseDelta.x * m_camera.rotationSpeed, 0.0f));
+        }
+
+        auto freeRoamBaseSpeed = 0.0005f;
+        if (userInput.isKeyPressed(InputKey::W)) {
+            m_camera.translate(glm::vec3(m_camera.viewPos) * freeRoamBaseSpeed);
+        }
+
+        if (userInput.isKeyPressed(InputKey::S)) {
+            m_camera.translate(-glm::vec3(m_camera.viewPos) * freeRoamBaseSpeed);
+        }
+        
         updateUniformBuffer(currentFrame);
 
         vkResetCommandBuffer(m_commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
@@ -242,15 +269,10 @@ namespace vulkan {
     }
 
     void Renderer::updateUniformBuffer(uint32_t currentImage) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), m_width / (float)m_height, 0.1f, 10.0f);
+        ubo.model = glm::mat4(1.0f);
+        ubo.view = m_camera.matrices.view;
+        ubo.proj = m_camera.matrices.perspective;
         ubo.proj[1][1] *= -1;
 
         void* data;

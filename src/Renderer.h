@@ -5,6 +5,7 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 
 #include "RenderCfg.h"
 #include "VkContext.h"
@@ -12,6 +13,12 @@
 #include "Uniform.h"
 #include "Sampler.h"
 #include "SyncResources.h"
+#include "Camera.h"
+
+namespace sss {
+	class ArcBallCamera;
+	class UserInput;
+}
 
 namespace vulkan {
 	class Texture;
@@ -26,7 +33,7 @@ namespace vulkan {
 		~Renderer();
 
 	public:
-		void Render(uint32_t width, uint32_t height);
+		void Render(uint32_t width, uint32_t height, sss::UserInput& userInput);
 		void Renderer::recordCommandBuffer();
 
 	public:
@@ -56,6 +63,7 @@ namespace vulkan {
 
 		std::vector<VkCommandBuffer> m_commandBuffers;
 
+		Camera m_camera;
 		uint32_t m_width, m_height;
 		uint32_t currentFrame = 0;
 
