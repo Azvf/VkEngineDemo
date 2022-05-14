@@ -8,16 +8,14 @@
 #include "Sampler.h"
 
 namespace vulkan {
-	Descriptor::Descriptor(VkDevice device, VkImageView imageView, const Uniform& uni, const Sampler& sampler)
-        : m_device(device)
+	Descriptor::Descriptor(VkDevice device, VkDescriptorPool descriptorPool, VkImageView imageView, const Uniform& uni, const Sampler& sampler)
+        : m_device(device), m_descriptorPool(descriptorPool)
     {
         createDescriptorSetLayout();
-        createDescriptorPool();
         createDescriptorSets(imageView, uni, sampler);
 	}
 
     Descriptor::~Descriptor() {
-        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     }
 
@@ -30,29 +28,6 @@ namespace vulkan {
     {
         return m_descriptorSetLayout;
     }
-
-    VkDescriptorPool Descriptor::getDescriptorPool() const
-    {
-        return m_descriptorPool;
-    }
-
-	void Descriptor::createDescriptorPool() {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-	}
 
     void Descriptor::createDescriptorSetLayout() {
         VkDescriptorSetLayoutBinding uboLayoutBinding{};

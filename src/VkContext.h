@@ -33,6 +33,7 @@ namespace vulkan {
 		VkQueue getPresentQueue() const;
 		VkCommandPool getGraphicsCommandPool() const;
 		VkSurfaceKHR getSurface() const;
+		VkDescriptorPool getDescriptorPool() const;
 		// VkPhysicalDeviceFeatures getDeviceFeatures() const;
 		// VkPhysicalDeviceFeatures getEnabledDeviceFeatures() const;
 		// VkPhysicalDeviceProperties getDeviceProperties() const;
@@ -47,6 +48,7 @@ namespace vulkan {
 		VkQueue m_graphicsQueue;
 		VkQueue m_presentQueue;
 		VkCommandPool m_graphicsCommandPool;
+		VkDescriptorPool m_descriptorPool;
 		// VkPhysicalDeviceFeatures m_features;
 		// VkPhysicalDeviceFeatures m_enabledFeatures;
 		// VkPhysicalDeviceProperties m_properties;

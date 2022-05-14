@@ -161,20 +161,41 @@ namespace vulkan {
 
         vkResetFences(device, 1, &m_syncResrc.getInFlightFence(currentFrame));
         
-        const glm::vec2 mouseDelta = userInput.getMousePosDelta() * ((userInput.isMouseButtonPressed(InputMouse::BUTTON_LEFT)) ? 1.0f : 0.0f);
+        const glm::vec2 mouseDelta = userInput.getMousePosDelta();
         const float scrollDelta = userInput.getScrollOffset().y;
 
         if (userInput.isMouseButtonPressed(InputMouse::BUTTON_LEFT)) {
             m_camera.rotate(glm::vec3(mouseDelta.y * m_camera.rotationSpeed, mouseDelta.x * m_camera.rotationSpeed, 0.0f));
         }
 
-        auto freeRoamBaseSpeed = 0.0005f;
+        auto freeRoamBaseSpeed = 0.001f;
         if (userInput.isKeyPressed(InputKey::W)) {
-            m_camera.translate(glm::vec3(m_camera.viewPos) * freeRoamBaseSpeed);
+            auto forward = glm::normalize(glm::vec3(m_camera.viewPos));
+            m_camera.translate(forward * freeRoamBaseSpeed);
+        } 
+        else if (userInput.isKeyPressed(InputKey::S)) {
+            auto backward = -glm::normalize(glm::vec3(m_camera.viewPos));
+            m_camera.translate(backward * freeRoamBaseSpeed);
+        } 
+        else if (userInput.isKeyPressed(InputKey::A)) {
+            auto right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), glm::vec3(m_camera.viewPos)));
+            m_camera.translate(right * freeRoamBaseSpeed);
+        } 
+        else if (userInput.isKeyPressed(InputKey::D)) {
+            auto left = -glm::normalize(glm::cross(glm::vec3(0, 1, 0), glm::vec3(m_camera.viewPos)));
+            m_camera.translate(left * freeRoamBaseSpeed);
         }
-
-        if (userInput.isKeyPressed(InputKey::S)) {
-            m_camera.translate(-glm::vec3(m_camera.viewPos) * freeRoamBaseSpeed);
+        else if (userInput.isKeyPressed(InputKey::Q)) {
+            auto upwards = glm::vec3(0, 1, 0);
+            m_camera.translate(upwards * freeRoamBaseSpeed);
+        }
+        else if (userInput.isKeyPressed(InputKey::E)) {
+            auto downwards = glm::vec3(0, -1, 0);
+            m_camera.translate(downwards * freeRoamBaseSpeed);
+        }
+        else if (userInput.isKeyPressed(InputKey::R)) {
+            m_camera.setPosition(glm::vec3(0.0f, 0.0f, -2.5f));
+            m_camera.setRotation(glm::vec3(0.0f));
         }
         
         updateUniformBuffer(currentFrame);
@@ -282,7 +303,7 @@ namespace vulkan {
     }
 
     void Renderer::createDescriptor() {
-        m_descriptor = std::make_shared<Descriptor>(m_context.getDevice(), m_texture->getView(), m_uniform, m_sampler);
+        m_descriptor = std::make_shared<Descriptor>(m_context.getDevice(), m_context.getDescriptorPool(), m_texture->getView(), m_uniform, m_sampler);
     }
 
     void Renderer::createPipleline()

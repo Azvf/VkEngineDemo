@@ -6,6 +6,7 @@
 #include <set>
 #include <iostream>
 
+#include "RenderCfg.h"
 #include "VKUtil.h"
 
 namespace vulkan {
@@ -153,9 +154,29 @@ namespace vulkan {
             }
         }
 
+        // create descriptor pool
+        {
+            std::array<VkDescriptorPoolSize, 2> poolSizes{};
+            poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+            VkDescriptorPoolCreateInfo poolInfo{};
+            poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+            poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+            poolInfo.pPoolSizes = poolSizes.data();
+            poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+            if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create descriptor pool!");
+            }
+        }
+
 	}
 
     VKContext::~VKContext() {
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
         vkDestroyCommandPool(m_device, m_graphicsCommandPool, nullptr);
         vkDestroyDevice(m_device, nullptr);
 
@@ -204,6 +225,11 @@ namespace vulkan {
     VkSurfaceKHR VKContext::getSurface() const
     {
         return m_surface;
+    }
+
+    VkDescriptorPool VKContext::getDescriptorPool() const
+    {
+        return m_descriptorPool;
     }
 
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
