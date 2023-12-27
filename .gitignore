@@ -5,3 +5,4 @@ bin/
 assets/
 *.spv
 glm/
+engine/source/_generated/

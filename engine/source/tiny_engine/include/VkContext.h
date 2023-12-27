@@ -37,7 +37,7 @@ namespace vulkan {
 		// VkPhysicalDeviceFeatures getDeviceFeatures() const;
 		// VkPhysicalDeviceFeatures getEnabledDeviceFeatures() const;
 		// VkPhysicalDeviceProperties getDeviceProperties() const;
-		// uint32_t getGraphicsQueueFamilyIndex() const;
+		uint32_t getGraphicsQueueFamilyIndex() const;
 
 	private:
 		VkInstance m_instance;
@@ -52,7 +52,7 @@ namespace vulkan {
 		// VkPhysicalDeviceFeatures m_features;
 		// VkPhysicalDeviceFeatures m_enabledFeatures;
 		// VkPhysicalDeviceProperties m_properties;
-		// uint32_t m_graphicsQueueFamilyIndex;
+		uint32_t m_graphicsQueueFamilyIndex;
 	};
 
 }

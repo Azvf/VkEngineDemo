@@ -99,6 +99,11 @@ namespace vulkan {
         {
             QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice, m_surface);
 
+            uint32_t adapter_index = static_cast<uint32_t>(indices.graphicsFamily.value());
+            if (adapter_index >= 0) {
+                m_graphicsQueueFamilyIndex = adapter_index;
+            }
+
             std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
             std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
@@ -148,7 +153,7 @@ namespace vulkan {
             VkCommandPoolCreateInfo poolInfo{};
             poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
             poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+            poolInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 
             if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_graphicsCommandPool) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create command pool!");
@@ -231,6 +236,10 @@ namespace vulkan {
     VkDescriptorPool VKContext::getDescriptorPool() const
     {
         return m_descriptorPool;
+    }
+
+    uint32_t VKContext::getGraphicsQueueFamilyIndex() const {
+        return m_graphicsQueueFamilyIndex;
     }
 
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {

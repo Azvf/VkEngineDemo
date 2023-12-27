@@ -37,21 +37,14 @@ include_directories(${TINY_ENGINE_VENDOR_DIR})
 # include_directories(${TINY_ENGINE_VENDOR_DIR}/glm)
 
 # stb
-# include_directories(${TINY_ENGINE_VENDOR_DIR}/stb)
+target_link_libraries(${PROJECT_NAME} PRIVATE stb)
+
+# imgui
+include_directories(${TINY_ENGINE_VENDOR_DIR}/imgui)
+target_link_libraries(${PROJECT_NAME} PRIVATE imgui)
 
 # Vulkan
-find_package(Vulkan REQUIRED)
-if (Vulkan_FOUND)
-    include_directories(${Vulkan_INCLUDE_DIRS})
-    target_link_libraries (${PROJECT_NAME} PRIVATE ${Vulkan_LIBRARIES})
-    message(STATUS "Vulkan_INCLUDE_DIRS: ${Vulkan_INCLUDE_DIRS}")
-	message(STATUS "Vulkan_LIBRARIES: ${Vulkan_LIBRARIES}")
-endif (Vulkan_FOUND)
+target_link_libraries (${PROJECT_NAME} PRIVATE ${Vulkan_Libraires})
 
-# GLFW
-set(GLFW_INCLUDE_DIRS "${TINY_ENGINE_VENDOR_DIR}/glfw/include")
-set(GLFW_LIBRARIES "${TINY_ENGINE_VENDOR_DIR}/glfw/lib/glfw3.lib")
-include_directories(${GLFW_INCLUDE_DIRS})
-target_link_libraries (${PROJECT_NAME} PRIVATE ${GLFW_LIBRARIES})
-message(STATUS "GLFW_INCLUDE_DIRS: ${GLFW_INCLUDE_DIRS}")
-message(STATUS "GLFW_LIBRARIES: ${GLFW_LIBRARIES}")
+#glfw
+target_link_libraries(${PROJECT_NAME} PRIVATE ${GLFW_Libraries})

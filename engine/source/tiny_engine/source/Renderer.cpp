@@ -11,6 +11,11 @@
 #include <glm/gtx/hash.hpp>
 #include <tinyobjloader/tiny_obj_loader.h>
 
+#include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_vulkan.h>
+
 #include "VkUtil.h"
 #include "Descriptor.h"
 #include "Mesh.h"
