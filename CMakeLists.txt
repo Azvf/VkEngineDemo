@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
 project(VkEngineDemo)
+set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/bin/$<CONFIG>>)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/bin/$<CONFIG>>)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
 
-add_subdirectory(src)
-add_subdirectory(vk-bootstrap)
+set(TINY_ENGINE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/engine/source")
+set(TINY_ENGINE_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/engine/vendor")
 
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT VkEngineDemo)
+add_subdirectory(engine)
