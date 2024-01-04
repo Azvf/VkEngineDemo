@@ -6,9 +6,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT VkEngineDemo)
 endif()
 
-# todo: add local vulkan library
-# set(vulkan_include ${THIRD_PARTY_DIR}/VulkanSDK/include)
-
 # glfw
 set(GLFW_Includes ${TINY_ENGINE_VENDOR_DIR}/glfw/include)
 include_directories(${GLFW_Includes})
@@ -29,9 +26,9 @@ add_subdirectory(vendor)
 add_subdirectory(source/parser)
 add_subdirectory(source/tiny_engine)
 
+#codegen
 set(CODEGEN_TARGET "PiccoloPreCompile")
 include(precompile/precompile.cmake)
-set_target_properties("${CODEGEN_TARGET}" PROPERTIES FOLDER "Engine")
 
 add_dependencies(VkEngineDemo "${CODEGEN_TARGET}")
 add_dependencies("${CODEGEN_TARGET}" MetaParser)

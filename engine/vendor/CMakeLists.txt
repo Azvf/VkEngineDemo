@@ -4,12 +4,17 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 if(NOT TARGET imgui)
     include(imgui.cmake)
-    set_target_properties(imgui PROPERTIES FOLDER ${VENDOR_FOLDER}/imgui)
+    set_target_properties(imgui PROPERTIES FOLDER ${VENDOR_FOLDER})
 endif()
 
 if(NOT TARGET stb)
     include(stb.cmake)
-    set_target_properties(stb PROPERTIES FOLDER ${VENDOR_FOLDER}/stb)
+    set_target_properties(stb PROPERTIES FOLDER ${VENDOR_FOLDER})
+endif()
+
+if(NOT TARGET json11)
+    include(json11.cmake)
+    set_target_properties(json11 PROPERTIES FOLDER ${VENDOR_FOLDER})
 endif()
 
 # if(NOT TARGET tinyobjloader)
