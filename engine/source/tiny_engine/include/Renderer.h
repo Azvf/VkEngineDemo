@@ -44,7 +44,7 @@ namespace Chandelier {
 
 	public:
 		void Render(uint32_t width, uint32_t height, sss::UserInput& userInput);
-		void Renderer::recordCommandBuffer();
+		void recordCommandBuffer();
 
 	public:
 		void createTexture(const char* path, TextureType texType);

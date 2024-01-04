@@ -22,7 +22,7 @@ namespace Chandelier {
 		void unmap();
 
 	private:
-		void Buffer::createBuffer(const VkBufferCreateInfo& bufferInfo, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+		void createBuffer(const VkBufferCreateInfo& bufferInfo, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 
 	private:
 		VkPhysicalDevice m_physicalDevice;

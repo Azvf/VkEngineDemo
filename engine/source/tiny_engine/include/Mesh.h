@@ -12,7 +12,7 @@ namespace Chandelier {
 	class Mesh
 	{
 	public:
-        static std::shared_ptr<Mesh> Mesh::load(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool cmdPool,
+        static std::shared_ptr<Mesh> load(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool cmdPool,
             const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
         Mesh() = default;
 		Mesh(const Mesh&) = delete;
