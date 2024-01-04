@@ -3,7 +3,7 @@
 #include "RenderCfg.h"
 #include "VkUtil.h"
 
-namespace vulkan {
+namespace Chandelier {
 	Uniform::Uniform(VkPhysicalDevice physicalDevice, VkDevice device)
         : m_physicalDevice(physicalDevice), m_device(device)
     {

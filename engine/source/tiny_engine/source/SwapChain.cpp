@@ -5,8 +5,7 @@
 
 #include "VkUtil.h"
 
-namespace vulkan {
-
+namespace Chandelier {
 	SwapChain::SwapChain(VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t width, uint32_t height)
 		:m_physicalDevice(physicalDevice), m_device(device), m_surface(surface)
 	{

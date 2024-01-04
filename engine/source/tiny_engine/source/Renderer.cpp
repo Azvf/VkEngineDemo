@@ -26,8 +26,8 @@
 #include "common_utils.h"
 
 namespace std {
-    template<> struct hash<vulkan::Vertex> {
-        size_t operator()(vulkan::Vertex const& vertex) const {
+    template<> struct hash<Chandelier::Vertex> {
+        size_t operator()(Chandelier::Vertex const& vertex) const {
             return ((hash<glm::vec3>()(vertex.pos) ^
                 (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
                 (hash<glm::vec2>()(vertex.texCoord) << 1);
@@ -35,7 +35,7 @@ namespace std {
     };
 }
 
-namespace vulkan {
+namespace Chandelier {
     Renderer::Renderer(void* windowHandle, uint32_t width, uint32_t height) :
         m_width(width), m_height(height),
         m_context((GLFWwindow*)windowHandle),

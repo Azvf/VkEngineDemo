@@ -1,6 +1,6 @@
 #include "Engine.h"
 
-namespace vulkan {
+namespace Chandelier {
 	Engine::Engine()
 		: m_window(WIDTH, HEIGHT, "Vk Engine Demo"),
 			m_renderer((GLFWwindow*)m_window.getWindowHandle(), WIDTH, HEIGHT)

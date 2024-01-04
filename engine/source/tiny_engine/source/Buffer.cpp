@@ -4,7 +4,7 @@
 
 #include "VkUtil.h"
 
-namespace vulkan {
+namespace Chandelier {
 	Buffer::Buffer(VkPhysicalDevice physicalDevice, VkDevice device, const VkBufferCreateInfo& createInfo, VkMemoryPropertyFlags requiredFlags)
 		: m_physicalDevice(physicalDevice), m_device(device), m_size(createInfo.size), m_mappedPtr() 
 	{

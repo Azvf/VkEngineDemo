@@ -9,7 +9,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 
-namespace vulkan {
+namespace Chandelier {
     // Util
     std::vector<char> readFile(const std::string& filename);
 

@@ -4,7 +4,7 @@
 
 #include "VkUtil.h"
 
-namespace vulkan {
+namespace Chandelier {
 
 	Sampler::Sampler(VkPhysicalDevice physicalDevice, VkDevice device) 
         : m_physicalDevice(physicalDevice), m_device(device)

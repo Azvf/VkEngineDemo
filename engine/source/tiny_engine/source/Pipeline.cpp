@@ -5,7 +5,7 @@
 #include "VkUtil.h"
 #include "common_utils.h"
 
-namespace vulkan {
+namespace Chandelier {
 
     Pipeline::Pipeline(VkPhysicalDevice physicalDevice, VkDevice device, uint32_t width, uint32_t height, VkExtent2D extent, VkDescriptorSetLayout descriptorSetLayout, VkRenderPass renderPass)
         : m_physicalDevice(physicalDevice), m_device(device)

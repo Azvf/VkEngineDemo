@@ -22,7 +22,7 @@ namespace sss {
 	class UserInput;
 }
 
-namespace vulkan {
+namespace Chandelier {
 	class Texture;
 	class Descriptor;
 	class Mesh;
@@ -63,8 +63,8 @@ namespace vulkan {
 		SwapChain m_swapChain;
 		SyncResources m_syncResrc;
 
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
+		std::vector<Vertex>		vertices;
+		std::vector<uint32_t>	indices;
 
 		std::map<TextureType, std::shared_ptr<Texture>> m_textures;
 

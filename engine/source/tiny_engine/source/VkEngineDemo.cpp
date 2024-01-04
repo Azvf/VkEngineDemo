@@ -1,7 +1,7 @@
 #include "Engine.h"
 
 int main() {
-	vulkan::Engine engine;
+	Chandelier::Engine engine;
 	
 	engine.run();
 

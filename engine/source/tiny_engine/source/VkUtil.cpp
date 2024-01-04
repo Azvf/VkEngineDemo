@@ -19,7 +19,7 @@
 
 #undef max
 
-namespace vulkan {
+namespace Chandelier {
 
     bool checkValidationLayerSupport() {
         uint32_t layerCount;

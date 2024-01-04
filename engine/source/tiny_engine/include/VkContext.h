@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace vulkan {
+namespace Chandelier {
 	
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
@@ -38,8 +38,19 @@ namespace vulkan {
 		// VkPhysicalDeviceFeatures getEnabledDeviceFeatures() const;
 		// VkPhysicalDeviceProperties getDeviceProperties() const;
 		uint32_t getGraphicsQueueFamilyIndex() const;
+		VkQueryPool getQueryPool() const;
+
+	public:
+		void CreateSwapchain();
+		void RecreateSwapChain();
+		void ClearSwapChain();
 
 	private:
+		VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+		VkFormat FindDepthFormat();
+
+	private:
+		void* m_windowHandle;
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debugUtilsMessenger;
 		VkPhysicalDevice m_physicalDevice;
@@ -53,6 +64,13 @@ namespace vulkan {
 		// VkPhysicalDeviceFeatures m_enabledFeatures;
 		// VkPhysicalDeviceProperties m_properties;
 		uint32_t m_graphicsQueueFamilyIndex;
+		VkQueryPool m_queryPool;
+		VkSwapchainKHR m_swapchain;
+		std::vector<VkImage> m_swapchainImages;
+		std::vector<VkImageView> m_swapchainImageViews;
+		VkImage m_depthImage;
+		VkDeviceMemory m_depthImageMemory;
+		VkImageView m_depthImageView;
 	};
 
 }

@@ -7,7 +7,7 @@
 #include "Uniform.h"
 #include "Sampler.h"
 
-namespace vulkan {
+namespace Chandelier {
 	Descriptor::Descriptor(VkDevice device, VkDescriptorPool descriptorPool, VkImageView imageView, const Uniform& uni, const Sampler& sampler)
         : m_device(device), m_descriptorPool(descriptorPool)
     {

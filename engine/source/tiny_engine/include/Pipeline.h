@@ -5,7 +5,7 @@
 
 #include <utility>
 
-namespace vulkan {
+namespace Chandelier {
 
 	class Pipeline {
 	public:

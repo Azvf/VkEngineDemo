@@ -7,7 +7,7 @@
 
 #include "VkUtil.h"
 
-namespace vulkan {
+namespace Chandelier {
 
 	std::shared_ptr<Texture> Texture::load(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool cmdPool, const char* path, bool cube)
 	{

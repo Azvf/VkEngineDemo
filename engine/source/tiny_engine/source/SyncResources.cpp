@@ -4,7 +4,7 @@
 
 #include "RenderCfg.h"
 
-namespace vulkan {
+namespace Chandelier {
 	SyncResources::SyncResources(VkDevice device)
         : m_device(device)
 	{

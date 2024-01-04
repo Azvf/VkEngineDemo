@@ -8,7 +8,7 @@
 #include "Window.h"
 #include "Renderer.h"
 
-namespace vulkan {
+namespace Chandelier {
 	const uint32_t WIDTH = 1280;
 	const uint32_t HEIGHT = 720;
 

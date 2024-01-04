@@ -4,7 +4,7 @@
 
 #include "VkUtil.h"
 
-namespace vulkan {
+namespace Chandelier {
 	
 	Image::Image(VkPhysicalDevice physicalDevice, VkDevice device, const VkImageCreateInfo& createInfo, 
 		VkMemoryPropertyFlags requiredFlags, VkMemoryPropertyFlags preferredFlags, VkImageViewType viewType, const VkImageSubresourceRange& subresourceRange)

@@ -4,8 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace vulkan
-{
+namespace Chandelier {
 	class VKContext;
 
 	class SwapChain
