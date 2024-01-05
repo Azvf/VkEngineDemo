@@ -1,6 +1,6 @@
 #pragma once
-#include "core/meta/json.h"
-#include "core/meta/reflection/reflection.h"
+#include "runtime/core/meta/json.h"
+#include "runtime/core/meta/reflection/reflection.h"
 
 #include <cassert>
 
@@ -166,4 +166,4 @@ namespace Chandelier
 
     //
     ////////////////////////////////////
-} // namespace Piccolo
+} // namespace Chandelier

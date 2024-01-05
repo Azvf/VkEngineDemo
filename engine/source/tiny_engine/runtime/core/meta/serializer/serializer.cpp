@@ -148,4 +148,4 @@ namespace Chandelier
     }*/
 
     ////////////////////////////////////
-} // namespace Piccolo
+} // namespace Chandelier
