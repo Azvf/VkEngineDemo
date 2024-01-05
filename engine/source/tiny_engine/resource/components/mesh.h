@@ -1,6 +1,6 @@
 #pragma once
-#include "core/math/transform.h"
-#include "core/meta/reflection/reflection.h"
+#include "runtime/core/math/transform.h"
+#include "runtime/core/meta/reflection/reflection.h"
 
 namespace Chandelier
 {
@@ -23,4 +23,4 @@ namespace Chandelier
     public:
         std::vector<SubMeshRes> m_sub_meshes;
     };
-} // namespace Piccolo
+} // namespace Chandelier

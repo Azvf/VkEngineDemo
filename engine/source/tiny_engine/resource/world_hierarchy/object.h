@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace Piccolo
+namespace Chandelier
 {
     class Component;
 
@@ -39,4 +39,4 @@ namespace Piccolo
 
         std::vector<Reflection::ReflectionPtr<Component>> m_instanced_components;
     };
-} // namespace Piccolo
+} // namespace Chandelier
