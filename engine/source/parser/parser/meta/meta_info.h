@@ -13,7 +13,7 @@ public:
 
 private:
     typedef std::pair<std::string, std::string> Property;
-
+    
     std::unordered_map<std::string, std::string> m_properties;
 
 private:

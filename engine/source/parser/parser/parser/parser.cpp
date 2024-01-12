@@ -129,7 +129,12 @@ bool MetaParser::parseProject()
     {
         std::string temp_string(include_item);
         Utils::replace(temp_string, '\\', '/');
-        include_file << "#include  \"" << temp_string << "\"" << std::endl;
+    
+        for(auto t: Utils::split(temp_string, ","))
+        {
+            t.erase(std::remove(t.begin(), t.end(), '\n'));
+            include_file << "#include  \"" << t << "\"" << std::endl;
+        }
     }
 
     include_file << "#endif" << std::endl;
@@ -202,16 +207,41 @@ void MetaParser::generateFiles(void)
 void MetaParser::buildClassAST(const Cursor& cursor, Namespace& current_namespace)
 {
     for (auto& child : cursor.getChildren())
-    {
+    {        
         auto kind = child.getKind();
 
         // actual definition and a class or struct
         if (child.isDefinition() && (kind == CXCursor_ClassDecl || kind == CXCursor_StructDecl))
         {
             auto class_ptr = std::make_shared<Class>(child, current_namespace);
+#ifdef  __META_PARSER_DEBUG__
+            if (cursor.getDisplayName() != "std" && cursor.getDisplayName() != "tr1") {
+                std::cout
+                    << "cursor name: " << cursor.getDisplayName() << "\n"
+                    << "child name: " << child.getDisplayName() << "\n"
+                    << "child is definition: " << child.isDefinition() << "\n"
+                    << "child kind: " << child.getKind() << "\n"
+                    << "should compile: " << class_ptr->shouldCompile() << "\n"
+                    << "NativeProperty::All: " << class_ptr->m_meta_data.getFlag(NativeProperty::All) << "\n"
+                    << "NativeProperty::Fields: " << class_ptr->m_meta_data.getFlag(NativeProperty::Fields) << "\n"
+                    << "NativeProperty::WhiteListFields: " << class_ptr->m_meta_data.getFlag(NativeProperty::WhiteListFields) << "\n"
+                    << std::endl;
+                
+                std::cout
+                    << "class_ptr->m_meta_data.m_properties size: " << class_ptr->m_meta_data.m_properties.size() << "\n"
+                    << std::endl;
 
+                for (auto& p : class_ptr->m_meta_data.m_properties) {
+                    std::cout
+                        << "child name: " << child.getDisplayName() << "\n"
+                        << "prop key: " << p.first << "\n"
+                        << "prop val: " << p.second << "\n"
+                        << std::endl;
+                }
+            }
+#endif //  __META_PARSER_DEBUG__
             TRY_ADD_LANGUAGE_TYPE(class_ptr, classes);
-        }
+}
         else
         {
             RECURSE_NAMESPACES(kind, child, buildClassAST, current_namespace);

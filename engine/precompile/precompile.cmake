@@ -34,7 +34,13 @@ COMMAND
   ${CMAKE_COMMAND} -E echo "************************************************************* "
 
 COMMAND
-    ${PRECOMPILE_PARSER} "${PICCOLO_PRECOMPILE_PARAMS_PATH}"  "${PARSER_INPUT}"  "${ENGINE_ROOT_DIR}/source" ${sys_include} "Chandelier" 0
+    ${PRECOMPILE_PARSER} 
+      "${PICCOLO_PRECOMPILE_PARAMS_PATH}"
+      "${PARSER_INPUT}"
+      "${ENGINE_ROOT_DIR}/source" 
+      ${sys_include} 
+      "Chandelier" 
+      0
 ### BUILDING ====================================================================================
 COMMAND
     ${CMAKE_COMMAND} -E echo "+++ Precompile finished +++"

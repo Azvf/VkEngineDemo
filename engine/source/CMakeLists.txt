@@ -51,21 +51,22 @@ file(GLOB TINY_ENGINE_GENERATED CONFIGURE_DEPENDS
     ${TINY_ENGINE_SOURCES}/_generated/serializer/all_serializer.ipp
 )
 
-# headers(temp)
-file(GLOB TINY_ENGINE_HEADERS CONFIGURE_DEPENDS 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+# vulkan
+file(GLOB TINY_ENGINE_VULKAN CONFIGURE_DEPENDS 
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan/*.cpp
 )
 
-# sources(temp)
-file(GLOB TINY_ENGINE_SOURCES CONFIGURE_DEPENDS 
-    ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp
+# editor
+file(GLOB TINY_ENGINE_EDITOR CONFIGURE_DEPENDS 
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor/*.cpp
 )
 
 # folder group
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES 
-    ${HEADER_FILES} 
-    ${SOURCE_FILES}
+    ${TINY_ENGINE_VULKAN} 
+    ${TINY_ENGINE_EDITOR}
     ${TINY_ENGINE_RENDER_SOURCES}
     ${TINY_ENGINE_UI_SOURCES}
     ${TINY_ENGINE_RUNTIME_CORE_BASE}
@@ -76,8 +77,8 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES
 
 add_executable(${PROJECT_NAME} 
     ${TINY_ENGINE_VENDORS}
-    ${TINY_ENGINE_HEADERS}
-    ${TINY_ENGINE_SOURCES}
+    ${TINY_ENGINE_VULKAN} 
+    ${TINY_ENGINE_EDITOR}
     ${TINY_ENGINE_RENDER_SOURCES}
     ${TINY_ENGINE_UI_SOURCES}
     ${TINY_ENGINE_RUNTIME_CORE_BASE}
@@ -86,17 +87,16 @@ add_executable(${PROJECT_NAME}
     ${TINY_ENGINE_GENERATED}
 )
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
+
 # tiny engine include
-include_directories(${TINY_ENGINE_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/editor)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/vulkan)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/render)
 
 # vendor
 include_directories(${TINY_ENGINE_VENDOR_DIR})
-
-# glm
-# include_directories(${TINY_ENGINE_VENDOR_DIR}/glm)
 
 # stb
 target_link_libraries(${PROJECT_NAME} PRIVATE stb)
@@ -116,7 +116,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE json11)
 
 ### precompile
 # set global var used by precompile
-file(GLOB_RECURSE RUNTIME_HEADER_FILES CONFIGURE_DEPENDS "*.h")
-set(PICCOLO_RUNTIME_HEADS "${RUNTIME_HEADER_FILES}" PARENT_SCOPE)
-# file(GLOB_RECURSE EDITOR_HEADER_FILES CONFIGURE_DEPENDS "include/*.h")
-# set(PICCOLO_EDITOR_HEADS "${EDITOR_HEADER_FILES}" PARENT_SCOPE)
+file(GLOB_RECURSE HEADER_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+set(PICCOLO_RUNTIME_HEADS "${HEADER_FILES}" PARENT_SCOPE)
+file(GLOB_RECURSE EDITOR_HEADER_FILES CONFIGURE_DEPENDS "include/*.h")
+set(PICCOLO_EDITOR_HEADS "${EDITOR_HEADER_FILES}" PARENT_SCOPE)

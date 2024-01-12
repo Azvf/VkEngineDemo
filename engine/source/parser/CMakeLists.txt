@@ -1,5 +1,7 @@
 set(TARGET_NAME MetaParser)
 
+option(META_PARSER_DEBUG "output debug information" OFF)
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 file(GLOB_RECURSE HEADERS "*.h")
@@ -22,6 +24,10 @@ include_directories(${LLVM_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/parser)
 add_executable(${TARGET_NAME} ${HEADERS} ${SOURCES})
 
 set_target_properties(${TARGET_NAME} PROPERTIES CXX_STANDARD 17)
+
+if (META_PARSER_DEBUG)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE __META_PARSER_DEBUG__)
+endif()
 
 if (CMAKE_HOST_WIN32)
     set(LLVM_LIBRARY_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/LLVM/lib/x64)

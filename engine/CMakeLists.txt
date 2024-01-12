@@ -24,7 +24,7 @@ endif()
 
 add_subdirectory(vendor)
 add_subdirectory(source/parser)
-add_subdirectory(source/tiny_engine)
+add_subdirectory(source)
 
 #codegen
 set(CODEGEN_TARGET "PiccoloPreCompile")

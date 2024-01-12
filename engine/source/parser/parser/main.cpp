@@ -50,13 +50,31 @@ int parse(std::string project_input_file_name,
     std::cout << "Parsing meta data for target \"" << module_name << "\"" << std::endl;
     std::fstream input_file;
 
+#ifdef  __META_PARSER_DEBUG__
+    std::cout 
+        << "project_input_file_name: " << project_input_file_name << "\n" 
+        << "source_include_file_name: " << source_include_file_name << "\n"
+        << "include_path: " << include_path << "\n"
+        << "sys_include: " << sys_include << "\n"
+        << "module_name: " << module_name << "\n"
+        << "show_errors: " << show_errors << "\n"
+        << std::endl;
+#endif //  __META_PARSER_DEBUG__
+
     bool is_show_errors = "0" != show_errors;
 
     MetaParser parser(
         project_input_file_name, source_include_file_name, include_path, sys_include, module_name, is_show_errors);
 
-    std::cout << "Parsing in " << include_path << std::endl;
     int result = parser.parse();
+
+#ifdef  __META_PARSER_DEBUG__
+    std::cout
+        << "Parsing in " << include_path << "\n"
+        << "result: " << result << "\n"
+        << std::endl;
+#endif //  __META_PARSER_DEBUG__
+
     if (0 != result)
     {
         return result;
