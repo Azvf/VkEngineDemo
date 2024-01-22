@@ -2,23 +2,29 @@
 
 #include <unordered_map>
 
-namespace Chandelier {
+namespace Chandelier
+{
     static const size_t s_invalid_guid = 0;
 
     template<typename T>
-    class GuidAllocator {
+    class GuidAllocator
+    {
     public:
-        static bool isValidGuid(size_t guid) { return guid != s_invalid_guid; }
+        static bool IsValidGuid(size_t guid) { return guid != s_invalid_guid; }
 
-        size_t allocGuid(const T& t) {
+        size_t AllocGuid(const T& t)
+        {
             auto find_it = m_elements_guid_map.find(t);
-            if (find_it != m_elements_guid_map.end()) {
+            if (find_it != m_elements_guid_map.end())
+            {
                 return find_it->second;
             }
 
-            for (size_t i = 0; i < m_guid_elements_map.size() + 1; i++) {
+            for (size_t i = 0; i < m_guid_elements_map.size() + 1; i++)
+            {
                 size_t guid = i + 1;
-                if (m_guid_elements_map.find(guid) == m_guid_elements_map.end()) {
+                if (m_guid_elements_map.find(guid) == m_guid_elements_map.end())
+                {
                     m_guid_elements_map.insert(std::make_pair(guid, t));
                     m_elements_guid_map.insert(std::make_pair(t, guid));
                     return guid;
@@ -28,7 +34,8 @@ namespace Chandelier {
             return s_invalid_guid;
         }
 
-        bool getGuidRelatedElement(size_t guid, T& t) {
+        bool GetGuidRelatedElement(size_t guid, T& t)
+        {
             auto find_it = m_guid_elements_map.find(guid);
             if (find_it != m_guid_elements_map.end())
             {
@@ -38,7 +45,8 @@ namespace Chandelier {
             return false;
         }
 
-        bool getElementGuid(const T& t, size_t& guid) {
+        bool GetElementGuid(const T& t, size_t& guid)
+        {
             auto find_it = m_elements_guid_map.find(t);
             if (find_it != m_elements_guid_map.end())
             {
@@ -48,11 +56,10 @@ namespace Chandelier {
             return false;
         }
 
-        bool hasElement(const T& t) { 
-            return m_elements_guid_map.find(t) != m_elements_guid_map.end(); 
-        }
+        bool HasElement(const T& t) { return m_elements_guid_map.find(t) != m_elements_guid_map.end(); }
 
-        void freeGuid(size_t guid) {
+        void FreeGuid(size_t guid)
+        {
             auto find_it = m_guid_elements_map.find(guid);
             if (find_it != m_guid_elements_map.end())
             {
@@ -62,7 +69,8 @@ namespace Chandelier {
             }
         }
 
-        void freeElement(const T& t) {
+        void FreeElement(const T& t)
+        {
             auto find_it = m_elements_guid_map.find(t);
             if (find_it != m_elements_guid_map.end())
             {
@@ -72,7 +80,8 @@ namespace Chandelier {
             }
         }
 
-        std::vector<size_t> getAllocatedGuids() const {
+        std::vector<size_t> GetAllocatedGuids() const
+        {
             std::vector<size_t> allocated_guids;
             for (const auto& ele : m_guid_elements_map)
             {
@@ -81,7 +90,8 @@ namespace Chandelier {
             return allocated_guids;
         }
 
-        void clear() {
+        void clear()
+        {
             m_elements_guid_map.clear();
             m_guid_elements_map.clear();
         }
