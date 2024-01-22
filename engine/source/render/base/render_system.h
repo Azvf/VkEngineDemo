@@ -1,22 +1,32 @@
 #pragma once
 
-#include <memory>
 #include "render_resources.h"
 
-namespace Chandelier {
-	class WindowSystem;
-	class VKContext;
+class Camera;
+namespace Chandelier
+{
+    class VKContext;
+    class WindowSystem;
+    class RenderScene;
 
-	class RenderSystem {
-	public:
-		RenderSystem() = default;
-		~RenderSystem();
+    class MainRenderPass;
+    class UIPass;
 
-	public:
-		void Initialize(std::shared_ptr<WindowSystem> window_system);
+    class RenderSystem
+    {
+    public:
+        RenderSystem() = default;
+        ~RenderSystem();
 
-	private:
-		std::shared_ptr<VKContext> m_context;
-		RenderResource m_resource;
-	};
-}
+    public:
+        void Initialize(std::shared_ptr<WindowSystem> window_system);
+
+    private:
+        std::shared_ptr<VKContext>      m_context;
+        std::shared_ptr<WindowSystem>   m_window_system;
+        std::shared_ptr<MainRenderPass> m_main_pass;
+        std::shared_ptr<UIPass>         m_ui_pass;
+        std::shared_ptr<Camera>         m_camera;
+        std::shared_ptr<RenderScene>    m_scene;
+    };
+} // namespace Chandelier

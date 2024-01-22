@@ -1,8 +1,8 @@
 #pragma once
 
+#include <memory>
+
 namespace Chandelier {
-	class RenderPassBase {
-
-	};
-
+	class VKContext;
+	class RenderPassBase {};
 }

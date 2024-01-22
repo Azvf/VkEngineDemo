@@ -4,7 +4,7 @@
 #include <memory>
 #include <vulkan/vulkan.h>
 
-#include "hash.h"
+#include "runtime/core/base/hash.h"
 
 namespace Chandelier {
     enum Texture_Type : uint8_t {
