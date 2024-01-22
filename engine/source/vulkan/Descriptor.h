@@ -1,33 +1,31 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
-namespace Chandelier {
-	class Uniform;
-	class Sampler;
+#include "VkCreateInfo.h"
 
-	class Descriptor {
-	public:
-		Descriptor(VkDevice device, VkDescriptorPool descriptorPool, VkImageView imageView, const Uniform& uni, const Sampler& sampler);
-		~Descriptor();
+namespace Chandelier
+{
+    class Descriptor
+    {
+    public:
+        Descriptor() = default;
+        ~Descriptor();
 
-	public:
-		const VkDescriptorSet& getDescriptorSet(uint32_t index) const;
-		VkDescriptorSetLayout getDescriptorLayout() const;
+        void                               Initialize(const DescriptorCreateInfo& info);
+        static std::shared_ptr<Descriptor> Create(const DescriptorCreateInfo& info);
 
-	private:
-		void createDescriptorSetLayout();
-		void createDescriptorSets(VkImageView imageView, const Uniform& uni, const Sampler& sampler);
-	
-	private:
-		VkDevice m_device;
-		VkDescriptorPool m_descriptorPool;
+        const VkDescriptorSet& getDescriptorSet(uint32_t index) const;
+        VkDescriptorSetLayout  getDescriptorLayout() const;
 
-		VkDescriptorSetLayout m_descriptorSetLayout;
-		std::vector<VkDescriptorSet> m_descriptorSets;
-	
-	};
-}
+    private:
+        VkDescriptorSetLayout        m_descriptorSetLayout;
+        std::vector<VkDescriptorSet> m_descriptorSets;
+
+        DescriptorCreateInfo m_info;
+    };
+} // namespace Chandelier

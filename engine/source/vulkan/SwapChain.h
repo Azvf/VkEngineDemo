@@ -1,61 +1,62 @@
 #pragma once
 
 #define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
 #include <vector>
+#include <vulkan/vulkan.h>
 
-namespace Chandelier {
-	class VKContext;
+namespace Chandelier
+{
+    class VKContext;
 
-	class SwapChain
-	{
-	public:
-		explicit SwapChain(VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t width, uint32_t height);
-		~SwapChain();
-		
-		SwapChain(SwapChain&) = delete;
-		SwapChain(SwapChain&&) = delete;
-		SwapChain& operator= (const SwapChain&) = delete;
-		SwapChain& operator= (const SwapChain&&) = delete;
-		
-		VkExtent2D getExtent() const;
-		VkFormat getImageFormat() const;
-		operator VkSwapchainKHR() const;
-		VkImage getImage(size_t index) const;
-		VkImageView getImageView(size_t index) const;
-		size_t getImageCount() const;
-		VkRenderPass getRenderPass() const;
-		VkFramebuffer getFramebuffer(uint32_t index) const;
-		VkSwapchainKHR getSwapchain() const;
+    class SwapChain
+    {
+    public:
+        explicit SwapChain(std::shared_ptr<VKContext> context, uint32_t width, uint32_t height);
+        ~SwapChain();
 
-		void recreate(uint32_t width, uint32_t height);
-	
-	private:
-		void createSwapChain(uint32_t width, uint32_t height);
-		void createRenderPass();
-		void createDepthBuffer();
-		void createFramebuffers();
-		void destroy();
+        SwapChain(SwapChain&)                   = delete;
+        SwapChain(SwapChain&&)                  = delete;
+        SwapChain& operator=(const SwapChain&)  = delete;
+        SwapChain& operator=(const SwapChain&&) = delete;
 
-	private:
-		VkFormat findDepthFormat();
-		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+        VkExtent2D getExtent() const;
+        VkFormat   getImageFormat() const;
+        operator VkSwapchainKHR() const;
+        VkImage        getImage(size_t index) const;
+        VkImageView    getImageView(size_t index) const;
+        size_t         getImageCount() const;
+        VkRenderPass   getRenderPass() const;
+        VkFramebuffer  getFramebuffer(uint32_t index) const;
+        VkSwapchainKHR getSwapchain() const;
 
-	private:
-		VkPhysicalDevice m_physicalDevice;
-		VkDevice m_device;
-		VkSurfaceKHR m_surface;
-		VkSwapchainKHR m_swapChain;
-		VkFormat m_swapChainImageFormat;
-		VkExtent2D m_swapChainExtent;
-		std::vector<VkImage> m_swapChainImages;
-		std::vector<VkImageView> m_swapChainImageViews;
+        void recreate(uint32_t width, uint32_t height);
 
-		VkRenderPass m_renderPass;
-		std::vector<VkFramebuffer> m_swapChainFramebuffers;
+    private:
+        void createSwapChain(uint32_t width, uint32_t height);
+        void createRenderPass();
+        void createDepthBuffer();
+        void createFramebuffers();
+        void destroy();
 
-		VkImage m_depthImage;
-		VkDeviceMemory m_depthImageMemory;
-		VkImageView m_depthImageView;
-	};
-}
+    private:
+        VkFormat findDepthFormat();
+        VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
+                                     VkImageTiling                tiling,
+                                     VkFormatFeatureFlags         features);
+
+    private:
+        std::shared_ptr<VKContext> m_context;
+        VkSwapchainKHR             m_swapChain;
+        VkFormat                   m_swapChainImageFormat;
+        VkExtent2D                 m_swapChainExtent;
+        std::vector<VkImage>       m_swapChainImages;
+        std::vector<VkImageView>   m_swapChainImageViews;
+
+        VkRenderPass               m_renderPass;
+        std::vector<VkFramebuffer> m_swapChainFramebuffers;
+
+        VkImage        m_depthImage;
+        VkDeviceMemory m_depthImageMemory;
+        VkImageView    m_depthImageView;
+    };
+} // namespace Chandelier

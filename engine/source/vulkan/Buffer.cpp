@@ -2,18 +2,42 @@
 
 #include <iostream>
 
+#include "runtime/core/base/exception.h"
+
 #include "VkUtil.h"
+#include "VkContext.h"
 
 namespace Chandelier {
-	Buffer::Buffer(VkPhysicalDevice physicalDevice, VkDevice device, const VkBufferCreateInfo& createInfo, VkMemoryPropertyFlags requiredFlags)
-		: m_physicalDevice(physicalDevice), m_device(device), m_size(createInfo.size), m_mappedPtr() 
-	{
-        createBuffer(createInfo, requiredFlags, m_buffer, m_memory);
-	}
-
     Buffer::~Buffer() {
-        vkDestroyBuffer(m_device, m_buffer, nullptr);
-        vkFreeMemory(m_device, m_memory, nullptr);
+        if (m_info.context) {
+            const auto& device = m_info.context->getDevice();
+            vkDestroyBuffer(device, m_buffer, nullptr);
+            vkFreeMemory(device, m_memory, nullptr);
+        }
+    }
+
+    void Buffer::Initialize(const BufferCreateInfo& info) {
+        const auto& device = info.context->getDevice();
+        VULKAN_API_CALL(vkCreateBuffer(device, &info.vk_buffer_info, nullptr, &m_buffer));
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, m_buffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(m_physicalDevice, memRequirements.memoryTypeBits, info.mem_flags);
+
+        VULKAN_API_CALL(vkAllocateMemory(device, &allocInfo, nullptr, &m_memory));
+        VULKAN_API_CALL(vkBindBufferMemory(device, m_buffer, m_memory, 0));
+
+        this->m_info = info;
+    }
+
+    std::shared_ptr<Buffer> Buffer::Create(const BufferCreateInfo& info) {
+        auto buffer = std::make_shared<Buffer>();
+        buffer->Initialize(info);
+        return buffer;
     }
 
     void Buffer::createBuffer(const VkBufferCreateInfo& bufferInfo, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
