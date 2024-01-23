@@ -1,15 +1,19 @@
 #pragma once
 
-#include "vulkan/VkCreateInfo.h"
 #include <optional>
+
+#include "vulkan/VkCreateInfo.h"
 
 namespace Chandelier
 {
+    class VKContext;
+
     class WindowSystem;
     class Texture;
     class Buffer;
     class Shader;
     class CommandBuffer;
+    class CommandBuffers;
 
     struct QueueFamilyIndices
     {
@@ -19,6 +23,7 @@ namespace Chandelier
         bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
     };
 
+    using VKContextPtr = std::shared_ptr<VKContext>;
     class VKContext : public std::enable_shared_from_this<VKContext>
     {
     public:
@@ -30,7 +35,6 @@ namespace Chandelier
         VkPhysicalDevice getPhysicalDevice() const;
         VkQueue          getGraphicsQueue() const;
         VkQueue          getPresentQueue() const;
-        VkCommandPool    getGraphicsCommandPool() const;
         VkSurfaceKHR     getSurface() const;
         VkDescriptorPool getDescriptorPool() const;
         // VkPhysicalDeviceFeatures getDeviceFeatures() const;
@@ -38,6 +42,8 @@ namespace Chandelier
         // VkPhysicalDeviceProperties getDeviceProperties() const;
         uint32_t    getGraphicsQueueFamilyIndex() const;
         VkQueryPool getQueryPool() const;
+        VkQueryPool getQueryPool() const;
+        std::shared_ptr<CommandBuffers> GetCommandBuffers();
 
     public:
         void TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout);
@@ -64,13 +70,15 @@ namespace Chandelier
         VkSurfaceKHR                  m_surface;
         VkQueue                       m_graphicsQueue;
         VkQueue                       m_presentQueue;
-        VkCommandPool                 m_graphicsCommandPool;
-        VkDescriptorPool              m_descriptorPool;
-        uint32_t                      m_graphicsQueueFamilyIndex;
-        VkQueryPool                   m_queryPool;
-        VkSwapchainKHR                m_swapchain;
-        std::vector<VkImage>          m_swapchainImages;
-        std::vector<VkImageView>      m_swapchainImageViews;
+        // VkCommandPool                   m_graphicsCommandPool;
+        VkDescriptorPool                m_descriptorPool;
+        uint32_t                        m_graphicsQueueFamilyIndex;
+        VkQueryPool                     m_queryPool;
+        std::shared_ptr<CommandBuffers> m_command_buffers;
+
+        // VkSwapchainKHR                  m_swapchain;
+        // std::vector<VkImage>            m_swapchainImages;
+        // std::vector<VkImageView>        m_swapchainImageViews;
         // VkPhysicalDeviceFeatures m_features;
         // VkPhysicalDeviceFeatures m_enabledFeatures;
         // VkPhysicalDeviceProperties m_properties;

@@ -14,6 +14,7 @@
 #include "Buffer.h"
 #include "Shader.h"
 #include "CommandBuffer.h"
+#include "CommandBuffers.h"
 #include "Descriptor.h"
 #include "Uniform.h"
 #include "Sampler.h"
@@ -177,18 +178,20 @@ namespace Chandelier {
         }
 
         // create command pool
-        {
-            QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice, m_surface);
-
-            VkCommandPoolCreateInfo poolInfo{};
-            poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            poolInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-
-            if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_graphicsCommandPool) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create command pool!");
-            }
-        }
+        // {
+        //     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice, m_surface);
+        // 
+        //     VkCommandPoolCreateInfo poolInfo{};
+        //     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        //     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        //     poolInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+        // 
+        //     if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_graphicsCommandPool) != VK_SUCCESS) {
+        //         throw std::runtime_error("failed to create command pool!");
+        //     }
+        // }
+        m_command_buffers = std::make_shared<CommandBuffers>();
+        m_command_buffers->Initialize(shared_from_this());
 
         // create descriptor pool
         {
@@ -214,7 +217,8 @@ namespace Chandelier {
     VKContext::~VKContext() {
         // ClearSwapChain();
         vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-        vkDestroyCommandPool(m_device, m_graphicsCommandPool, nullptr);
+        //vkDestroyCommandPool(m_device, m_graphicsCommandPool, nullptr);
+        m_command_buffers = nullptr;
         vkDestroyDevice(m_device, nullptr);
 
         if (enableValidationLayers)
@@ -254,11 +258,6 @@ namespace Chandelier {
         return m_presentQueue;
     }
 
-    VkCommandPool VKContext::getGraphicsCommandPool() const
-    {
-        return m_graphicsCommandPool;
-    }
-
     VkSurfaceKHR VKContext::getSurface() const
     {
         return m_surface;
@@ -275,6 +274,10 @@ namespace Chandelier {
 
     VkQueryPool VKContext::getQueryPool() const {
         return m_queryPool;
+    }
+
+    std::shared_ptr<CommandBuffers> VKContext::GetCommandBuffers() { 
+        return m_command_buffers;
     }
 
     //void VKContext::CreateSwapchain() {
@@ -432,10 +435,9 @@ namespace Chandelier {
 
     void VKContext::TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout) {
         auto command = BeginSingleTimeCommand();
-        const auto&image = texture->m_image;
         
         VkImageMemoryBarrier barrier{};
-        VkImageLayout old_layout = texture->m_info.layout;
+        VkImageLayout old_layout = texture->getLayout();
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout = old_layout;
         barrier.newLayout = new_layout;
@@ -443,7 +445,7 @@ namespace Chandelier {
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         
-        barrier.image                           = image->getImage();
+        barrier.image = texture->getImage();
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = 1;
@@ -488,12 +490,11 @@ namespace Chandelier {
         );
         
         EndSingleTimeCommand(command);
-        texture->m_info.layout = new_layout;
     }
 
     void VKContext::CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture) {
         VkDeviceSize buffer_size = buffer->m_size;
-        VkDeviceSize tex_size = texture->m_info.width * texture->m_info.height * 4;
+        VkDeviceSize tex_size = texture->getWidth() * texture->getHeight() * 4;
         if (buffer_size != tex_size) {
             ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
         }
@@ -511,12 +512,12 @@ namespace Chandelier {
         region.imageSubresource.layerCount = 1;
         
         region.imageOffset = { 0, 0, 0 };
-        region.imageExtent = { texture->m_info.width, texture->m_info.height, 1 };
+        region.imageExtent = {texture->getWidth(), texture->getHeight(), 1};
         
         vkCmdCopyBufferToImage(
             command->command_buffer,
             buffer->m_buffer,
-            texture->m_image->getImage(),
+            texture->getImage(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,
             &region
@@ -530,7 +531,7 @@ namespace Chandelier {
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = m_graphicsCommandPool;
+        allocInfo.commandPool = m_command_buffers;
         allocInfo.commandBufferCount = 1;
         VULKAN_API_CALL(vkAllocateCommandBuffers(m_device, &allocInfo, &command->command_buffer));
         
@@ -553,6 +554,7 @@ namespace Chandelier {
         VULKAN_API_CALL(vkQueueWaitIdle(m_graphicsQueue));
         vkFreeCommandBuffers(m_device, m_graphicsCommandPool, 1, &command->command_buffer);
     }
+
 
     QueueFamilyIndices VKContext::FindQueueFamilies()
     {
