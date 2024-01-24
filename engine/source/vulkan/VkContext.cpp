@@ -13,7 +13,6 @@
 #include "Texture.h"
 #include "Buffer.h"
 #include "Shader.h"
-#include "CommandBuffer.h"
 #include "CommandBuffers.h"
 #include "Descriptor.h"
 #include "Uniform.h"
@@ -84,19 +83,17 @@ namespace Chandelier {
                 createInfo.pNext = nullptr;
             }
 
-            if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create instance!");
-            }
+            VULKAN_API_CALL(vkCreateInstance(&createInfo, nullptr, &m_instance));
         }
 
         // create debug messenger
         {
-            // if (!enableValidationLayers) return;
             if (enableValidationLayers) {
                 VkDebugUtilsMessengerCreateInfoEXT createInfo;
                 populateDebugMessengerCreateInfo(createInfo);
 
-                _ASSERT(createDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugUtilsMessenger) == VK_SUCCESS);
+                VULKAN_API_CALL(createDebugUtilsMessengerEXT(
+                    m_instance, &createInfo, nullptr, &m_debugUtilsMessenger));
             }
         }
 
@@ -114,7 +111,7 @@ namespace Chandelier {
             vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
 
             for (const auto& device : devices) {
-                if (isDeviceSuitable(device, m_surface)) {
+                if (DeviceSuitable()) {
                     m_physicalDevice = device;
                     break;
                 }
@@ -128,7 +125,7 @@ namespace Chandelier {
 
         // create logical device
         {
-            QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice, m_surface);
+            QueueFamilyIndices indices = FindQueueFamilies();
 
             uint32_t adapter_index = static_cast<uint32_t>(indices.graphicsFamily.value());
             if (adapter_index >= 0) {
@@ -169,9 +166,7 @@ namespace Chandelier {
                 createInfo.enabledLayerCount = 0;
             }
 
-            if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create logical device!");
-            }
+            VULKAN_API_CALL(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device));
 
             vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
             vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
@@ -190,8 +185,7 @@ namespace Chandelier {
         //         throw std::runtime_error("failed to create command pool!");
         //     }
         // }
-        m_command_buffers = std::make_shared<CommandBuffers>();
-        m_command_buffers->Initialize(shared_from_this());
+        m_command_buffers.Initialize(shared_from_this());
 
         // create descriptor pool
         {
@@ -207,18 +201,19 @@ namespace Chandelier {
             poolInfo.pPoolSizes = poolSizes.data();
             poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
-            if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create descriptor pool!");
-            }
+            VULKAN_API_CALL(
+                vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
         }
+
+        Vector2i window_size = m_window_system->GetWindowSize();
+        m_swapchain.Initialize(shared_from_this(), window_size.x, window_size.y);
 
     }
 
     VKContext::~VKContext() {
-        // ClearSwapChain();
+        m_swapchain.Free();
+        m_command_buffers.Free();
         vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-        //vkDestroyCommandPool(m_device, m_graphicsCommandPool, nullptr);
-        m_command_buffers = nullptr;
         vkDestroyDevice(m_device, nullptr);
 
         if (enableValidationLayers)
@@ -276,7 +271,7 @@ namespace Chandelier {
         return m_queryPool;
     }
 
-    std::shared_ptr<CommandBuffers> VKContext::GetCommandBuffers() { 
+    CommandBuffers& VKContext::GetCommandBuffers() { 
         return m_command_buffers;
     }
 
@@ -434,8 +429,6 @@ namespace Chandelier {
     }
 
     void VKContext::TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout) {
-        auto command = BeginSingleTimeCommand();
-        
         VkImageMemoryBarrier barrier{};
         VkImageLayout old_layout = texture->getLayout();
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -480,16 +473,8 @@ namespace Chandelier {
             ENGINE_THROW_ERROR("image layout transfer not supported", EngineCode::Image_Layout_Not_Supported);
         }
         
-        vkCmdPipelineBarrier(
-            command->command_buffer,
-            sourceStage, destinationStage,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &barrier
-        );
-        
-        EndSingleTimeCommand(command);
+        m_command_buffers.IssuePipelineBarrier(
+            sourceStage, destinationStage, std::vector<VkImageMemoryBarrier> {barrier});
     }
 
     void VKContext::CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture) {
@@ -498,8 +483,6 @@ namespace Chandelier {
         if (buffer_size != tex_size) {
             ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
         }
-        
-        auto command = BeginSingleTimeCommand();
         
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -514,47 +497,8 @@ namespace Chandelier {
         region.imageOffset = { 0, 0, 0 };
         region.imageExtent = {texture->getWidth(), texture->getHeight(), 1};
         
-        vkCmdCopyBufferToImage(
-            command->command_buffer,
-            buffer->m_buffer,
-            texture->getImage(),
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &region
-        );
-        
-        EndSingleTimeCommand(command);
+        m_command_buffers.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
     }
-
-    std::shared_ptr<CommandBuffer> VKContext::BeginSingleTimeCommand() {
-        auto command = std::make_shared<CommandBuffer>();
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = m_command_buffers;
-        allocInfo.commandBufferCount = 1;
-        VULKAN_API_CALL(vkAllocateCommandBuffers(m_device, &allocInfo, &command->command_buffer));
-        
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        VULKAN_API_CALL(vkBeginCommandBuffer(command->command_buffer, &beginInfo));
-        
-        return command;
-    }
-
-    void VKContext::EndSingleTimeCommand(std::shared_ptr<CommandBuffer> command) {
-        VULKAN_API_CALL(vkEndCommandBuffer(command->command_buffer));
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &command->command_buffer;
-        
-        VULKAN_API_CALL(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
-        VULKAN_API_CALL(vkQueueWaitIdle(m_graphicsQueue));
-        vkFreeCommandBuffers(m_device, m_graphicsCommandPool, 1, &command->command_buffer);
-    }
-
 
     QueueFamilyIndices VKContext::FindQueueFamilies()
     {
@@ -607,6 +551,72 @@ namespace Chandelier {
         }
 
         ENGINE_THROW_ERROR("failed to find suitable memory type!", EngineCode::None_Suitable_Mem_Type);
+    }
+
+     bool VKContext::DeviceSuitable()
+    {
+         QueueFamilyIndices indices = FindQueueFamilies();
+
+        bool extensionsSupported = CheckDeviceExtensionSupport();
+
+        bool swapChainAdequate = false;
+        if (extensionsSupported)
+        {
+            SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport();
+            swapChainAdequate =
+                !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+        }
+
+        return indices.isComplete() && extensionsSupported && swapChainAdequate;
+    }
+
+     bool VKContext::CheckDeviceExtensionSupport()
+    {
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &extensionCount, nullptr);
+
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(
+            m_physicalDevice, nullptr, &extensionCount, availableExtensions.data());
+
+        std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+        for (const auto& extension : availableExtensions)
+        {
+            requiredExtensions.erase(extension.extensionName);
+        }
+
+        return requiredExtensions.empty();
+    }
+
+     SwapChainSupportDetails VKContext::QuerySwapChainSupport()
+    {
+        SwapChainSupportDetails details;
+
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &details.capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, nullptr);
+
+        if (formatCount != 0)
+        {
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(
+                m_physicalDevice, m_surface, &formatCount, details.formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(
+            m_physicalDevice, m_surface, &presentModeCount, nullptr);
+
+        if (presentModeCount != 0)
+        {
+            details.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(
+                m_physicalDevice, m_surface, &presentModeCount, details.presentModes.data());
+        }
+
+        return details;
     }
 
 }

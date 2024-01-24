@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "CommandBuffers.h"
 #include "vulkan/VkCreateInfo.h"
 
 namespace Chandelier
@@ -12,7 +13,6 @@ namespace Chandelier
     class Texture;
     class Buffer;
     class Shader;
-    class CommandBuffer;
     class CommandBuffers;
 
     struct QueueFamilyIndices
@@ -21,6 +21,15 @@ namespace Chandelier
         std::optional<uint32_t> presentFamily;
 
         bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
+    };
+
+    const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+    struct SwapChainSupportDetails
+    {
+        VkSurfaceCapabilitiesKHR        capabilities;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR>   presentModes;
     };
 
     using VKContextPtr = std::shared_ptr<VKContext>;
@@ -42,8 +51,8 @@ namespace Chandelier
         // VkPhysicalDeviceProperties getDeviceProperties() const;
         uint32_t    getGraphicsQueueFamilyIndex() const;
         VkQueryPool getQueryPool() const;
-        VkQueryPool getQueryPool() const;
-        std::shared_ptr<CommandBuffers> GetCommandBuffers();
+
+        CommandBuffers& GetCommandBuffers();
 
     public:
         void TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout);
@@ -54,6 +63,9 @@ namespace Chandelier
 
         QueueFamilyIndices FindQueueFamilies();
         uint32_t           FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+        bool               DeviceSuitable();
+        bool               CheckDeviceExtensionSupport();
+        SwapChainSupportDetails QuerySwapChainSupport();
 
     private:
         VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates,
@@ -63,18 +75,21 @@ namespace Chandelier
 
     private:
         std::shared_ptr<WindowSystem> m_window_system;
-        VkInstance                    m_instance;
-        VkDebugUtilsMessengerEXT      m_debugUtilsMessenger;
-        VkPhysicalDevice              m_physicalDevice;
-        VkDevice                      m_device;
-        VkSurfaceKHR                  m_surface;
-        VkQueue                       m_graphicsQueue;
-        VkQueue                       m_presentQueue;
-        // VkCommandPool                   m_graphicsCommandPool;
-        VkDescriptorPool                m_descriptorPool;
-        uint32_t                        m_graphicsQueueFamilyIndex;
-        VkQueryPool                     m_queryPool;
-        std::shared_ptr<CommandBuffers> m_command_buffers;
+
+        VkInstance               m_instance;
+        VkDebugUtilsMessengerEXT m_debugUtilsMessenger;
+        VkPhysicalDevice         m_physicalDevice;
+        VkDevice                 m_device;
+        VkSurfaceKHR             m_surface;
+        VkQueue                  m_graphicsQueue;
+        VkQueue                  m_presentQueue;
+        uint32_t                 m_graphicsQueueFamilyIndex;
+
+        VkDescriptorPool m_descriptorPool;
+        VkQueryPool      m_queryPool;
+
+        CommandBuffers m_command_buffers;
+        SwapChain      m_swapchain;
 
         // VkSwapchainKHR                  m_swapchain;
         // std::vector<VkImage>            m_swapchainImages;

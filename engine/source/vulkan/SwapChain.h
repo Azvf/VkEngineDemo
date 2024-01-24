@@ -1,18 +1,24 @@
 #pragma once
 
-#define VK_USE_PLATFORM_WIN32_KHR
 #include <vector>
+#include <memory>
+
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
 namespace Chandelier
 {
     class VKContext;
+    class Texture;
 
     class SwapChain
     {
     public:
-        explicit SwapChain(std::shared_ptr<VKContext> context, uint32_t width, uint32_t height);
+        SwapChain() = default;
         ~SwapChain();
+
+        void Initialize(std::shared_ptr<VKContext> context, uint32_t width, uint32_t height);
+        void Free();
 
         SwapChain(SwapChain&)                   = delete;
         SwapChain(SwapChain&&)                  = delete;
@@ -35,7 +41,6 @@ namespace Chandelier
         void createSwapChain(uint32_t width, uint32_t height);
         void createRenderPass();
         void createDepthBuffer();
-        void createFramebuffers();
         void destroy();
 
     private:
@@ -46,17 +51,20 @@ namespace Chandelier
 
     private:
         std::shared_ptr<VKContext> m_context;
-        VkSwapchainKHR             m_swapChain;
-        VkFormat                   m_swapChainImageFormat;
-        VkExtent2D                 m_swapChainExtent;
-        std::vector<VkImage>       m_swapChainImages;
-        std::vector<VkImageView>   m_swapChainImageViews;
 
-        VkRenderPass               m_renderPass;
-        std::vector<VkFramebuffer> m_swapChainFramebuffers;
+        VkSwapchainKHR m_swapChain;
+        VkFormat       m_swapChainImageFormat;
+        VkExtent2D     m_swapChainExtent;
+
+        VkRenderPass m_renderPass;
+
+        std::vector<VkImage>     m_swapChainImages;
+        std::vector<VkImageView> m_swapChainImageViews;
 
         VkImage        m_depthImage;
         VkDeviceMemory m_depthImageMemory;
         VkImageView    m_depthImageView;
+
+        std::shared_ptr<Texture> m_depth_image;
     };
 } // namespace Chandelier
