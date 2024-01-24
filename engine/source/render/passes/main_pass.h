@@ -19,6 +19,13 @@ namespace Chandelier
 
     class MainRenderPass : public RenderPass
     {
+        enum eAttachment : uint8_t
+        {
+            Color_Attachment        = 0,
+            DepthStencil_Attachment = 1,
+            Attachment_Max_Count
+        };
+
     public:
         MainRenderPass() = default;
         ~MainRenderPass();
