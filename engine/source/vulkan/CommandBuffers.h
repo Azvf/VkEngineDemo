@@ -2,6 +2,7 @@
 
 #include "CommandBuffer.h"
 #include "TimelineSemaphore.h"
+#include "ResourceTracker.h"
 #include "VkCreateInfo.h"
 
 namespace Chandelier
@@ -28,6 +29,7 @@ namespace Chandelier
         void Free();
 
         CommandBuffer& GetCommandBuffer(Type type);
+        SubmissionID&  GetSubmissionId();
 
         void IssuePipelineBarrier(const VkPipelineStageFlags        src_stages,
                                   const VkPipelineStageFlags        dst_stages,
@@ -46,6 +48,8 @@ namespace Chandelier
         void Copy(std::shared_ptr<Buffer>  src_buffer,
                   std::shared_ptr<Texture> dst_texture,
                   const std::vector<VkBufferImageCopy>& regions);
+
+
 
         void Submit();
         void Wait();
@@ -69,6 +73,8 @@ namespace Chandelier
          * submitted by this command buffers have been finished.
          */
         TimelineSemaphore::Value m_last_signal_value;
+
+        SubmissionID m_subid;
     };
 
 } // namespace Chandelier

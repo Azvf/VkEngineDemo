@@ -58,11 +58,7 @@ namespace Chandelier
         {
             assert(IsInStage(stage_from));
             (void)(stage_from);
-#if 0
-            printf(" *** Transfer stage from %s to %s\n",
-                   to_string(stage_from).c_str(),
-                   to_string(stage_to).c_str());
-#endif
+
             SetStage(stage_to);
         }
 

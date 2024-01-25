@@ -9,7 +9,6 @@
 
 #include "RenderCfg.h"
 #include "SwapChain.h"
-#include "Image.h"
 #include "Texture.h"
 #include "Buffer.h"
 #include "Shader.h"
@@ -187,23 +186,25 @@ namespace Chandelier {
         // }
         m_command_buffers.Initialize(shared_from_this());
 
-        // create descriptor pool
-        {
-            std::array<VkDescriptorPoolSize, 2> poolSizes{};
-            poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-            poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        // // create descriptor pool
+        // {
+        //     std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        //     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        //     poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        //     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        //     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        // 
+        //     VkDescriptorPoolCreateInfo poolInfo{};
+        //     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        //     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        //     poolInfo.pPoolSizes = poolSizes.data();
+        //     poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        // 
+        //     VULKAN_API_CALL(
+        //         vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
+        // }
 
-            VkDescriptorPoolCreateInfo poolInfo{};
-            poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-            poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-            poolInfo.pPoolSizes = poolSizes.data();
-            poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-            VULKAN_API_CALL(
-                vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
-        }
+        m_desc_pools.Initialize(shared_from_this());
 
         Vector2i window_size = m_window_system->GetWindowSize();
         m_swapchain.Initialize(shared_from_this(), window_size.x, window_size.y);
@@ -213,7 +214,7 @@ namespace Chandelier {
     VKContext::~VKContext() {
         m_swapchain.Free();
         m_command_buffers.Free();
-        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+        m_desc_pools.Free();
         vkDestroyDevice(m_device, nullptr);
 
         if (enableValidationLayers)
@@ -258,9 +259,9 @@ namespace Chandelier {
         return m_surface;
     }
 
-    VkDescriptorPool VKContext::getDescriptorPool() const
+    DescriptorPools& VKContext::GetDescriptorPools()
     {
-        return m_descriptorPool;
+        return m_desc_pools;
     }
 
     uint32_t VKContext::getGraphicsQueueFamilyIndex() const {
@@ -478,7 +479,7 @@ namespace Chandelier {
     }
 
     void VKContext::CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture) {
-        VkDeviceSize buffer_size = buffer->m_size;
+        VkDeviceSize buffer_size = buffer->getSize();
         VkDeviceSize tex_size = texture->getWidth() * texture->getHeight() * 4;
         if (buffer_size != tex_size) {
             ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);

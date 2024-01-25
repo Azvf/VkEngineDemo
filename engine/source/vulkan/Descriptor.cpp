@@ -4,6 +4,7 @@
 
 #include "runtime/core/base/exception.h"
 
+#include "Buffer.h"
 #include "RenderCfg.h"
 #include "Sampler.h"
 #include "Texture.h"
@@ -13,98 +14,120 @@
 
 namespace Chandelier
 {
+    Descriptor::Descriptor(Descriptor&& other) :
+        m_context(other.m_context), m_desc_pool(other.m_desc_pool), m_desc_set(other.m_desc_set)
+    {
+        other.m_context   = nullptr;
+        other.m_desc_set  = VK_NULL_HANDLE;
+        other.m_desc_pool = VK_NULL_HANDLE;
+    }
+
     Descriptor::~Descriptor()
     {
-        if (m_info.context)
+        if (m_desc_set != VK_NULL_HANDLE)
         {
-            vkDestroyDescriptorSetLayout(m_info.context->getDevice(), m_descriptorSetLayout, nullptr);
+            vkFreeDescriptorSets(m_context->getDevice(), m_desc_pool, 1, &m_desc_set);
+
+            m_desc_set  = VK_NULL_HANDLE;
+            m_desc_pool = VK_NULL_HANDLE;
         }
     }
 
-    std::shared_ptr<Descriptor> Descriptor::Create(const DescriptorCreateInfo& info)
+    DescriptorTracker::~DescriptorTracker() {}
+
+    void DescriptorTracker::Bind(std::unique_ptr<Buffer> buffer, Location loc) {}
+
+    void DescriptorTracker::Reset() {}
+
+    void DescriptorTracker::Sync()
     {
-        auto descriptor = std::make_shared<Descriptor>();
-        descriptor->Initialize(info);
-        return descriptor;
-    }
+        // todo: improve dirty falg situation
 
-    void Descriptor::Initialize(const DescriptorCreateInfo& info)
-    {
-        const auto& device    = info.context->getDevice();
-        const auto& dscp_pool = info.context->getDescriptorPool();
+        bool            dirty      = !m_bindings.empty();
+        auto&           descriptor = UpdateResources(m_context.get(), dirty);
+        VkDescriptorSet dst_set    = descriptor->Handle();
 
-        VkDescriptorSetLayoutBinding ubo_layout {};
-        ubo_layout.binding            = 0;
-        ubo_layout.descriptorCount    = 1;
-        ubo_layout.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        ubo_layout.pImmutableSamplers = nullptr;
-        ubo_layout.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT;
+        std::vector<VkDescriptorBufferInfo> buffer_infos;
+        buffer_infos.reserve(16);
+        std::vector<VkWriteDescriptorSet> descriptor_writes;
 
-        VkDescriptorSetLayoutBinding sampler_layout {};
-        sampler_layout.binding            = 1;
-        sampler_layout.descriptorCount    = 1;
-        sampler_layout.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        sampler_layout.pImmutableSamplers = nullptr;
-        sampler_layout.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {ubo_layout, sampler_layout};
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo {};
-        layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings    = bindings.data();
-
-        VULKAN_API_CALL(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_descriptorSetLayout));
-
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
-        VkDescriptorSetAllocateInfo        allocInfo {};
-        allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool     = dscp_pool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts        = layouts.data();
-
-        m_descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-        VULKAN_API_CALL(vkAllocateDescriptorSets(device, &allocInfo, m_descriptorSets.data()));
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        for (const Binding& binding : m_bindings)
         {
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
+            if (!binding.is_buffer())
+            {
+                continue;
+            }
+            VkDescriptorBufferInfo buffer_info = {};
+            buffer_info.buffer                 = binding.vk_buffer;
+            buffer_info.range                  = binding.buffer_size;
+            buffer_infos.push_back(buffer_info);
 
-            VkDescriptorBufferInfo bufferInfo {};
-            bufferInfo.buffer = info.uniform->getUniformBuffer(i);
-            bufferInfo.offset = 0;
-            bufferInfo.range  = sizeof(UniformBufferObject);
-
-            descriptorWrites[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet          = m_descriptorSets[i];
-            descriptorWrites[0].dstBinding      = 0;
-            descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo     = &bufferInfo;
-
-            VkDescriptorImageInfo imageInfo {};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView   = info.texture->getView();
-            imageInfo.sampler     = info.sampler->getTextureSampler();
-
-            descriptorWrites[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet          = m_descriptorSets[i];
-            descriptorWrites[1].dstBinding      = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo      = &imageInfo;
-
-            vkUpdateDescriptorSets(
-                device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            VkWriteDescriptorSet write_descriptor = {};
+            write_descriptor.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write_descriptor.dstSet               = dst_set;
+            write_descriptor.dstBinding           = binding.location;
+            write_descriptor.descriptorCount      = 1;
+            write_descriptor.descriptorType       = binding.type;
+            write_descriptor.pBufferInfo          = &buffer_infos.back();
+            descriptor_writes.push_back(write_descriptor);
         }
 
-        m_info = info;
+        for (const Binding& binding : m_bindings)
+        {
+            if (!binding.is_texel_buffer())
+            {
+                continue;
+            }
+            VkWriteDescriptorSet write_descriptor = {};
+            write_descriptor.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write_descriptor.dstSet               = dst_set;
+            write_descriptor.dstBinding           = binding.location;
+            write_descriptor.descriptorCount      = 1;
+            write_descriptor.descriptorType       = binding.type;
+            write_descriptor.pTexelBufferView     = &binding.vk_buffer_view;
+
+            descriptor_writes.push_back(write_descriptor);
+        }
+
+        std::vector<VkDescriptorImageInfo> image_infos;
+        image_infos.reserve(16);
+        for (const Binding& binding : m_bindings)
+        {
+            if (!binding.is_image())
+            {
+                continue;
+            }
+
+            /* TODO: Based on the actual usage we should use
+             * VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL/VK_IMAGE_LAYOUT_GENERAL. */
+            binding.texture->TransferLayout(VK_IMAGE_LAYOUT_GENERAL);
+            VkDescriptorImageInfo image_info = {};
+            image_info.sampler               = binding.vk_sampler;
+            image_info.imageView             = binding.texture->getView();
+            image_info.imageLayout           = binding.texture->getLayout();
+
+            image_infos.push_back(image_info);
+
+            VkWriteDescriptorSet write_descriptor = {};
+            write_descriptor.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write_descriptor.dstSet               = dst_set;
+            write_descriptor.dstBinding           = binding.location;
+            write_descriptor.descriptorCount      = 1;
+            write_descriptor.descriptorType       = binding.type;
+            write_descriptor.pImageInfo           = &image_infos.back();
+
+            descriptor_writes.push_back(write_descriptor);
+        }
+
+        vkUpdateDescriptorSets(
+            m_context->getDevice(), descriptor_writes.size(), descriptor_writes.data(), 0, nullptr);
+
+        m_bindings.clear();
     }
 
-    const VkDescriptorSet& Descriptor::getDescriptorSet(uint32_t index) const { return m_descriptorSets[index]; }
-
-    VkDescriptorSetLayout Descriptor::getDescriptorLayout() const { return m_descriptorSetLayout; }
+    std::unique_ptr<Descriptor> DescriptorTracker::CreateResource()
+    {
+        return m_context->GetDescriptorPools().AllocDescriptor(m_active_desc_layout);
+    }
 
 } // namespace Chandelier

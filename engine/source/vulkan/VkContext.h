@@ -3,6 +3,8 @@
 #include <optional>
 
 #include "CommandBuffers.h"
+#include "DescriptorPool.h"
+#include "SwapChain.h"
 #include "vulkan/VkCreateInfo.h"
 
 namespace Chandelier
@@ -45,7 +47,6 @@ namespace Chandelier
         VkQueue          getGraphicsQueue() const;
         VkQueue          getPresentQueue() const;
         VkSurfaceKHR     getSurface() const;
-        VkDescriptorPool getDescriptorPool() const;
         // VkPhysicalDeviceFeatures getDeviceFeatures() const;
         // VkPhysicalDeviceFeatures getEnabledDeviceFeatures() const;
         // VkPhysicalDeviceProperties getDeviceProperties() const;
@@ -53,13 +54,11 @@ namespace Chandelier
         VkQueryPool getQueryPool() const;
 
         CommandBuffers& GetCommandBuffers();
+        DescriptorPools& GetDescriptorPools();
 
     public:
         void TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout);
         void CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture);
-
-        std::shared_ptr<CommandBuffer> BeginSingleTimeCommand();
-        void                           EndSingleTimeCommand(std::shared_ptr<CommandBuffer> command);
 
         QueueFamilyIndices FindQueueFamilies();
         uint32_t           FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -85,11 +84,12 @@ namespace Chandelier
         VkQueue                  m_presentQueue;
         uint32_t                 m_graphicsQueueFamilyIndex;
 
-        VkDescriptorPool m_descriptorPool;
+        // VkDescriptorPool m_descriptorPool;
         VkQueryPool      m_queryPool;
 
-        CommandBuffers m_command_buffers;
-        SwapChain      m_swapchain;
+        CommandBuffers  m_command_buffers;
+        SwapChain       m_swapchain;
+        DescriptorPools m_desc_pools;
 
         // VkSwapchainKHR                  m_swapchain;
         // std::vector<VkImage>            m_swapchainImages;

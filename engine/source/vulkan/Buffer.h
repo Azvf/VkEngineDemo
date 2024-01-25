@@ -1,47 +1,53 @@
 #pragma once
 
-#include <memory>
+#include "VkCommon.h"
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+namespace Chandelier
+{
+    class Buffer
+    {
+    public:
+        Buffer() = default;
+        ~Buffer();
 
-#include "VkCreateInfo.h"
+        Buffer(const Buffer&)             = delete;
+        Buffer(const Buffer&&)            = delete;
+        Buffer& operator=(const Buffer&)  = delete;
+        Buffer& operator=(const Buffer&&) = delete;
 
-namespace Chandelier {
-	class Buffer {
-	public:
-		Buffer() = default;
-		~Buffer();
+        VkBuffer       getBuffer() const;
+        VkDeviceMemory getMemory() const;
+        size_t         getSize() const;
+        uint8_t*       map();
+        void           unmap();
 
-		Buffer(const Buffer&) = delete;
-		Buffer(const Buffer&&) = delete;
-		Buffer& operator= (const Buffer&) = delete;
-		Buffer& operator= (const Buffer&&) = delete;
-		
-		VkBuffer getBuffer() const;
-		VkDeviceMemory getMemory() const;
-		size_t getSize() const;
-		uint8_t* map();
-		void unmap();
+        void Allocate(std::shared_ptr<VKContext> context,
+                      VkDeviceSize               mem_size,
+                      VkMemoryPropertyFlags      mem_props,
+                      VkBufferUsageFlags         buffer_usage);
 
-		void Initialize(const BufferCreateInfo& info);
-		static std::shared_ptr<Buffer> Create(const BufferCreateInfo& info);
+        bool Allocated();
 
-		friend class VKContext;
+    private:
+        VkDeviceSize   m_size      = 0;
+        uint8_t*       m_mappedPtr = nullptr;
+        VkBuffer       m_buffer    = VK_NULL_HANDLE;
+        VkDeviceMemory m_memory    = VK_NULL_HANDLE;
 
-	private:
-		void createBuffer(const VkBufferCreateInfo& bufferInfo, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+        VkMemoryPropertyFlags m_mem_props;
+        VkBufferUsageFlags    m_buffer_usage;
 
-	private:
-		VkPhysicalDevice	m_physicalDevice;
-		VkDevice			m_device;
-		VkDeviceSize		m_size;
-		uint8_t*			m_mappedPtr;
-		VkBuffer			m_buffer;
-		VkDeviceMemory		m_memory;
+        std::shared_ptr<VKContext> m_context;
+    };
 
-		BufferCreateInfo	m_info;
-	};
+    class UniformBuffer
+    {
+        Buffer m_buffer;
 
 
-}
+
+
+    };
+
+
+} // namespace Chandelier

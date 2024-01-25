@@ -46,6 +46,7 @@ namespace Chandelier
         InitCommandBuffer(
             GetCommandBuffer(Type::Graphics), m_command_pool, vk_command_buffers[Type::Graphics]);
 
+        m_subid.reset();
         m_valid = true;
     }
 
@@ -174,7 +175,11 @@ namespace Chandelier
         }
     }
 
-    void CommandBuffers::Wait() { m_semaphore.Wait(m_last_signal_value); }
+    void CommandBuffers::Wait()
+    {
+        m_semaphore.Wait(m_last_signal_value);
+        m_subid.next();
+    }
 
     void CommandBuffers::Submit()
     {
@@ -224,5 +229,8 @@ namespace Chandelier
     }
 
     CommandBuffer& CommandBuffers::GetCommandBuffer(Type type) { return m_buffers[type]; }
+    
+    SubmissionID&  CommandBuffers::GetSubmissionId() { return m_subid; }
+
 
 } // namespace Chandelier
