@@ -501,6 +501,22 @@ namespace Chandelier {
         m_command_buffers.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
     }
 
+    void VKContext::FlushMappedBuffers(std::vector<std::shared_ptr<Buffer>> mapped_buffers) {
+        std::vector<VkMappedMemoryRange> mapped_ranges;
+        
+        VkDeviceSize offset {};
+        for (const auto& buffer : mapped_buffers)
+        {
+            VkMappedMemoryRange mappedRange {};
+            mappedRange.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            mappedRange.memory = buffer->getMemory();
+            mappedRange.offset = buffer->getOffset();
+            mappedRange.size   = buffer->getSize();
+        }
+
+        vkFlushMappedMemoryRanges(m_device, mapped_ranges.size(), mapped_ranges.data());
+    }
+
     QueueFamilyIndices VKContext::FindQueueFamilies()
     {
         QueueFamilyIndices indices;

@@ -1,29 +1,24 @@
 #pragma once
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+#include "VkCommon.h"
 
-#include "VkCreateInfo.h"
+namespace Chandelier
+{
+    class Sampler
+    {
+    public:
+        Sampler() = default;
+        ~Sampler();
 
-namespace Chandelier {
-	class Sampler {
-	public:
-		Sampler() = default;
-		~Sampler();
+        void Create(std::shared_ptr<VKContext> context);
+        void Free();
 
-		void Initialize(const SamplerCreateInfo& info);
-		static std::shared_ptr<Sampler> Create(const SamplerCreateInfo& info);
+        VkSampler GetSampler() const;
 
-		void createTextureSampler();
-	
-		VkSampler getTextureSampler() const;
+    private:
+        std::shared_ptr<VKContext> m_context;
 
-	private:
-		VkPhysicalDevice m_physicalDevice;
-		VkDevice m_device;
-		VkSampler m_textureSampler;
-	
-		SamplerCreateInfo m_info;
-	};
+        VkSampler m_sampler = VK_NULL_HANDLE;
+    };
 
-}
+} // namespace Chandelier

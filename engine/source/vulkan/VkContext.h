@@ -60,6 +60,8 @@ namespace Chandelier
         void TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout);
         void CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture);
 
+        void FlushMappedBuffers(std::vector<std::shared_ptr<Buffer>> mapped_buffers);
+
         QueueFamilyIndices FindQueueFamilies();
         uint32_t           FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
         bool               DeviceSuitable();

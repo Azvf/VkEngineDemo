@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "runtime/core/base/base_utility.h"
 #include "runtime/core/base/exception.h"
 
 #include "Buffer.h"
@@ -35,17 +36,56 @@ namespace Chandelier
 
     DescriptorTracker::~DescriptorTracker() {}
 
-    void DescriptorTracker::Bind(std::unique_ptr<Buffer> buffer, Location loc) {}
+    Binding& DescriptorTracker::EnsureLocation(Location loc)
+    {
+        for (auto& binding : m_bindings)
+        {
+            if (binding.location == loc)
+            {
+                return binding;
+            }
+        }
 
-    void DescriptorTracker::Reset() {}
+        Binding binding;
+        binding.location = loc;
+        m_bindings.push_back(binding);
 
-    void DescriptorTracker::Sync()
+        return m_bindings.back();
+    }
+
+    void DescriptorTracker::Bind(Buffer* buffer, Location loc)
+    {
+        Binding& binding = EnsureLocation(loc);
+
+        binding.type        = buffer->GetBindType();
+        binding.vk_buffer   = buffer->getBuffer();
+        binding.buffer_size = buffer->getSize();
+    }
+
+    void DescriptorTracker::Bind(Texture* texture, Location loc)
+    {
+        Binding& binding = EnsureLocation(loc);
+
+        binding.type    = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        binding.texture = texture;
+    }
+
+    void DescriptorTracker::Bind(Texture* texture, Sampler* sampler, Location loc)
+    {
+        Binding& binding = EnsureLocation(loc);
+
+        binding.type       = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        binding.texture    = texture;
+        binding.vk_sampler = sampler->GetSampler();
+    }
+
+    void DescriptorTracker::Sync(VkDescriptorSetLayout new_layout)
     {
         // todo: improve dirty falg situation
 
-        bool            dirty      = !m_bindings.empty();
-        auto&           descriptor = UpdateResources(m_context.get(), dirty);
-        VkDescriptorSet dst_set    = descriptor->Handle();
+        bool  dirty      = !m_bindings.empty() || AssignIfDiff(m_active_desc_layout, new_layout);
+        auto& descriptor = UpdateResources(m_context.get(), dirty);
+        VkDescriptorSet dst_set = descriptor->Handle();
 
         std::vector<VkDescriptorBufferInfo> buffer_infos;
         buffer_infos.reserve(16);

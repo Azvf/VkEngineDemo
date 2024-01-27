@@ -22,9 +22,11 @@ namespace Chandelier
     void Buffer::Allocate(std::shared_ptr<VKContext> context,
                           VkDeviceSize               mem_size,
                           VkMemoryPropertyFlags      mem_props,
-                          VkBufferUsageFlags         buffer_usage)
+                          VkBufferUsageFlags         buffer_usage,
+                          VkDescriptorType           bind_type)
     {
         m_context = context;
+        m_bind_type = bind_type;
 
         VkBufferCreateInfo buffer_info;
         buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -64,7 +66,9 @@ namespace Chandelier
 
     VkDeviceMemory Buffer::getMemory() const { return m_memory; }
 
-    size_t Buffer::getSize() const { return m_size; }
+    VkDeviceSize Buffer::getSize() const { return m_size; }
+
+    VkDeviceSize Buffer::getOffset() const { return m_offset; }
 
     uint8_t* Buffer::map()
     {
@@ -88,7 +92,24 @@ namespace Chandelier
         }
     }
 
-    bool Buffer::Allocated() { return m_memory != VK_NULL_HANDLE; }
+    void Buffer::Update(uint8_t* data)
+    {
+        assert(data);
 
+        if (!IsMapped())
+        {
+            assert(0);
+            return;
+        }
+
+        memcpy(m_mappedPtr, data, m_size);
+        m_context->FlushMappedBuffers(std::vector<std::shared_ptr<Buffer>> {shared_from_this()});
+    }
+
+    bool Buffer::IsAllocated() { return m_memory != VK_NULL_HANDLE; }
+
+    bool Buffer::IsMapped() { return !m_mappedPtr; }
+    
+    VkDescriptorType Buffer::GetBindType() { return m_bind_type; }
 
 } // namespace Chandelier

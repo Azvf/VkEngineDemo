@@ -1,18 +1,14 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+#include "VkCommon.h"
 
 #include "CommandBuffers.h"
-#include "VkCreateInfo.h"
 
 namespace Chandelier
 {
-    class VKContext;
     class DescriptorPools;
+    class Texture;
+    class Sampler;
 
     struct Location
     {
@@ -92,9 +88,9 @@ namespace Chandelier
         {
             assert(other.m_desc_set != VK_NULL_HANDLE);
 
-            m_context         = other.m_context;
-            m_desc_set        = other.m_desc_set;
-            m_desc_pool       = other.m_desc_pool;
+            m_context   = other.m_context;
+            m_desc_set  = other.m_desc_set;
+            m_desc_pool = other.m_desc_pool;
 
             other.m_context   = nullptr;
             other.m_desc_set  = VK_NULL_HANDLE;
@@ -114,14 +110,16 @@ namespace Chandelier
         DescriptorTracker() = default;
         DescriptorTracker(std::shared_ptr<VKContext> context) : m_context(context) {}
 
-        ~DescriptorTracker();
+        virtual ~DescriptorTracker();
 
         virtual std::unique_ptr<Descriptor> CreateResource() override;
 
-        void Bind(std::unique_ptr<Buffer> buffer, Location loc);
-        void Reset();
+        void     Bind(Buffer* buffer, Location loc);
+        void     Bind(Texture* texture, Location loc);
+        void     Bind(Texture* texture, Sampler* sampler, Location loc);
+        Binding& EnsureLocation(Location loc);
 
-        void Sync();
+        void Sync(VkDescriptorSetLayout new_layout);
 
     private:
         std::shared_ptr<VKContext> m_context;

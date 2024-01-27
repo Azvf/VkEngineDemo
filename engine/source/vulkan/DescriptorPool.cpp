@@ -51,7 +51,7 @@ namespace Chandelier
             {
                 ActivateNextPool();
             }
-            return Create(descriptor_set_layout);
+            return AllocDescriptor(descriptor_set_layout);
         }
 
         return std::make_unique<Descriptor>(m_context, pool, vk_descriptor_set);

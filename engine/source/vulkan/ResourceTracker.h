@@ -104,15 +104,20 @@ namespace Chandelier
          */
         std::unique_ptr<T>& UpdateResources(VKContext* context, const bool is_dirty)
         {
-            if (m_sub_tracker.Changed(context))
+            // if (m_sub_tracker.Changed(context))
+            // {
+            //     FreeTrackedResources();
+            //     m_resources.push_back(CreateResource(context));
+            // }
+            // else if (is_dirty || m_resources.empty())
+            // {
+            //     m_resources.push_back(CreateResource(context));
+            // }
+            if (m_resources.empty())
             {
-                FreeTrackedResources();
                 m_resources.push_back(CreateResource(context));
             }
-            else if (is_dirty || m_resources.is_empty())
-            {
-                m_resources.push_back(CreateResource(context));
-            }
+
             return GetResource();
         }
 
@@ -124,12 +129,12 @@ namespace Chandelier
         /**
          * Does this instance have an active resource.
          */
-        bool HasActiveResource() { return !m_resources.is_empty(); }
+        bool HasActiveResource() { return !m_resources.empty(); }
 
         /**
          * Return the active resource of the tracker.
          */
-        std::unique_ptr<T>& GetResource() { return m_resources.last(); }
+        std::unique_ptr<T>& GetResource() { return m_resources.back(); }
 
     private:
         void FreeTrackedResources() { m_resources.clear(); }

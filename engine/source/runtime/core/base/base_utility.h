@@ -20,4 +20,16 @@ namespace Chandelier{
 		NonMovable(const NonMovable& other) = default;
 		NonMovable& operator=(const NonMovable& other) = default;
 	};
+
+	template<typename T>
+    inline bool AssignIfDiff(T& old_value, T new_value)
+    {
+        if (old_value != new_value)
+        {
+            old_value = std::move(new_value);
+            return true;
+        }
+        return false;
+    }
+
 }
