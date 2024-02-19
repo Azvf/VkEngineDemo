@@ -1,16 +1,10 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
-
-#include "VkCreateInfo.h"
+#include "VkCommon.h"
 
 namespace Chandelier
 {
-    class Descriptor;
+    struct Descriptor;
 
     class DescriptorPools
     {
@@ -39,9 +33,8 @@ namespace Chandelier
         void Initialize(std::shared_ptr<VKContext> context);
         void Free();
 
-        std::unique_ptr<Descriptor>
-        AllocDescriptor(const VkDescriptorSetLayout& descriptor_set_layout);
-
+        std::shared_ptr<Descriptor> AllocDescriptor(const VkDescriptorSetLayout& descriptor_set_layout);
+        
         /**
          * @brief: Reset the pools to start looking for free space from the first descriptor pool.
          */

@@ -5,16 +5,11 @@
 
 namespace Chandelier
 {
-    class Buffer : std::enable_shared_from_this<Buffer>
+    class Buffer
     {
     public:
         Buffer() = default;
         ~Buffer();
-
-        Buffer(const Buffer&)             = delete;
-        Buffer(const Buffer&&)            = delete;
-        Buffer& operator=(const Buffer&)  = delete;
-        Buffer& operator=(const Buffer&&) = delete;
 
         VkBuffer       getBuffer() const;
         VkDeviceMemory getMemory() const;
@@ -24,7 +19,8 @@ namespace Chandelier
         void           unmap();
 
         bool IsMapped();
-        void Update(uint8_t* data);
+        void Update(const uint8_t* data, size_t size, uint64_t src_offset = 0, uint64_t dst_offset = 0);
+        void Flush();
 
         bool IsAllocated();
         void Allocate(std::shared_ptr<VKContext> context,
@@ -34,6 +30,7 @@ namespace Chandelier
                       VkDescriptorType           bind_type);
 
         VkDescriptorType GetBindType();
+        VkBufferUsageFlags GetUsage();
 
     protected:
         VkDeviceSize     m_size      = {};

@@ -9,7 +9,7 @@ namespace Chandelier
 {
     using TexturePtr = std::shared_ptr<Texture>;
 
-    class Texture : std::enable_shared_from_this<Texture>
+    class Texture 
     {
     public:
         Texture() = default;
@@ -29,7 +29,6 @@ namespace Chandelier
         VkFormat      getFormat() const;
         uint32_t      getWidth() const;
         uint32_t      getHeight() const;
-        uint32_t      getDepth() const;
         uint32_t      getLevels() const;
         uint32_t      getLayers() const;
         VkImageLayout getLayout() const;
@@ -57,12 +56,14 @@ namespace Chandelier
                          int                        mip_len,
                          VkFormat                   format,
                          VkImageUsageFlags          usage);
-
+        
         void TransferLayout(VkImageLayout        requested_layout,
                             VkPipelineStageFlags src_stage  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                             VkAccessFlags        src_access = VK_ACCESS_MEMORY_WRITE_BIT,
                             VkPipelineStageFlags dst_stage  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                             VkAccessFlags        dst_access = VK_ACCESS_MEMORY_READ_BIT);
+
+        void Sync(const uint8_t* data);
 
     private:
         void EnsureImageView();
@@ -90,7 +91,6 @@ namespace Chandelier
         VkFormat              m_format;
         uint32_t              m_width;
         uint32_t              m_height;
-        uint32_t              m_depth;
         uint32_t              m_mip_levels;
         uint32_t              m_layers;
         VkImageLayout         m_layout;

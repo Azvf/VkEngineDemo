@@ -1,15 +1,11 @@
 #pragma once
 
-#include <cassert>
-#include <cstdint>
-#include <memory>
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+#include "VkCommon.h"
 
 namespace Chandelier
 {
     class VKContext;
+
     class TimelineSemaphore
     {
     public:
@@ -54,7 +50,7 @@ namespace Chandelier
          *
          * Ensuring all commands queues before and including the given value have been finished.
          */
-        void Wait(const Value& value);
+        void Wait(const Value& value); // todo: built in wait value?
 
         Value IncreaseValue();
         Value GetValue() const;

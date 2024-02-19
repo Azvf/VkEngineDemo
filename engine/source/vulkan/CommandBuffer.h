@@ -3,12 +3,13 @@
 #include <cassert>
 #include <string>
 
+#include "runtime/core/base/base_utility.h"
 #include "VkCreateInfo.h"
 
 namespace Chandelier
 {
     class VKContext;
-    class CommandBuffer
+    class CommandBuffer : public NonCopyable 
     {
         enum Stage : uint8_t
         {

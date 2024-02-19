@@ -12,24 +12,21 @@ namespace Chandelier
 
     struct Location
     {
-    private:
-        /**
-         * References to a binding in the descriptor set.
-         */
-        uint32_t binding;
-
-        Location(uint32_t binding) : binding(binding) {}
-
-    public:
         Location() = default;
+        Location(uint32_t binding) : binding(binding) {}
 
         bool operator==(const Location& other) const { return binding == other.binding; }
 
         operator uint32_t() const { return binding; }
 
+        /**
+         * References to a binding in the descriptor set.
+         */
+        uint32_t binding;
+        
         // friend class VKDescriptorSetTracker;
         // friend class VKShaderInterface;
-        friend class Binding;
+        // friend class Binding;
     };
 
     struct Binding
@@ -45,12 +42,13 @@ namespace Chandelier
         Texture*  texture    = nullptr;
         VkSampler vk_sampler = VK_NULL_HANDLE;
 
+        VkShaderStageFlags shader_stages;
+
         Binding() { location.binding = 0; }
 
         bool is_buffer() const
         {
-            return (type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) ||
-                   (type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+            return (type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) || (type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
         }
 
         bool is_texel_buffer() const { return type == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER; }
@@ -107,19 +105,32 @@ namespace Chandelier
     class DescriptorTracker : ResourceTracker<Descriptor>
     {
     public:
-        DescriptorTracker() = default;
-        DescriptorTracker(std::shared_ptr<VKContext> context) : m_context(context) {}
+        explicit DescriptorTracker(std::shared_ptr<VKContext> context) : m_context(context) {}
 
         virtual ~DescriptorTracker();
 
-        virtual std::unique_ptr<Descriptor> CreateResource() override;
+        Binding& GetBinding(Location loc);
+        
+        void     Bind(Buffer* buffer, Location loc, VkShaderStageFlags stages);
+        void     Bind(Texture* texture, Location loc, VkShaderStageFlags stages);
+        void     Bind(Texture* texture, Sampler* sampler, Location loc, VkShaderStageFlags stages);
+        void     BindDescriptorSet(const VkPipelineLayout pipeline_layout, VkPipelineBindPoint pipeline_bind_point);
 
-        void     Bind(Buffer* buffer, Location loc);
-        void     Bind(Texture* texture, Location loc);
-        void     Bind(Texture* texture, Sampler* sampler, Location loc);
         Binding& EnsureLocation(Location loc);
 
-        void Sync(VkDescriptorSetLayout new_layout);
+        static VkDescriptorSetLayoutBinding CreateLayoutBinding(const Binding& binding);
+
+        VkDescriptorSetLayout GetSetLayout() const { return m_active_desc_layout; }
+
+        void Sync(/*VkDescriptorSetLayout new_layout*/);
+
+        operator VkDescriptorSetLayout() const { return m_active_desc_layout; }
+
+    protected:
+        virtual std::shared_ptr<Descriptor> CreateResource() override;
+
+    private:
+        VkDescriptorSetLayout CreateLayout();
 
     private:
         std::shared_ptr<VKContext> m_context;

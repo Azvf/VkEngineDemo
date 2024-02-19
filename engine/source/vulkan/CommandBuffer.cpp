@@ -1,5 +1,7 @@
 #include "CommandBuffer.h"
 
+#include "runtime/core/base/exception.h"
+
 #include "VkContext.h"
 
 namespace Chandelier
@@ -37,20 +39,21 @@ namespace Chandelier
         }
         if (IsInStage(Stage::Executed))
         {
-            vkResetCommandBuffer(m_buffer, 0);
+            VULKAN_API_CALL(vkResetCommandBuffer(m_buffer, 0));
             TransferStage(Stage::Executed, Stage::Initial);
         }
 
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vkBeginCommandBuffer(m_buffer, &begin_info);
+        VULKAN_API_CALL(vkBeginCommandBuffer(m_buffer, &begin_info));
+
         TransferStage(Stage::Initial, Stage::Recording);
         m_state.recorded_command_counts = 0;
     }
 
     void CommandBuffer::EndRecording()
     {
-        vkEndCommandBuffer(m_buffer);
+        VULKAN_API_CALL(vkEndCommandBuffer(m_buffer));
         TransferStage(Stage::Recording, Stage::BetweenRecordingAndSubmitting);
     }
 

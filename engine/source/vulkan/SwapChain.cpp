@@ -7,6 +7,7 @@
 
 #include "Texture.h"
 #include "VKContext.h"
+#include "TimelineSemaphore.h"
 #include "VkUtil.h"
 
 namespace Chandelier
@@ -18,11 +19,10 @@ namespace Chandelier
         m_context = context;
 
         createSwapChain(width, height);
-        createRenderPass();
-        createDepthBuffer();
+        
     }
 
-    void SwapChain::Free() { destroy(); }
+    void SwapChain::UnInit() { destroy(); }
 
     void SwapChain::createSwapChain(uint32_t width, uint32_t height)
     {
@@ -31,7 +31,7 @@ namespace Chandelier
         const auto& surface    = m_context->getSurface();
 
         // create SwapChain
-        SwapChainSupportDetails swapChainSupport = m_context->QuerySwapChainSupport();
+        SwapChainSupportDetails swapChainSupport = m_context->QuerySwapChainSupport(m_context->getPhysicalDevice());
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         VkPresentModeKHR   presentMode   = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -53,9 +53,9 @@ namespace Chandelier
         createInfo.imageColorSpace  = surfaceFormat.colorSpace;
         createInfo.imageExtent      = extent;
         createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-        QueueFamilyIndices indices              = m_context->FindQueueFamilies();
+        QueueFamilyIndices indices              = m_context->FindQueueFamilies(m_context->getPhysicalDevice());
         uint32_t           queueFamilyIndices[] = {indices.graphicsFamily.value(),
                                                    indices.presentFamily.value()};
 
@@ -79,9 +79,39 @@ namespace Chandelier
 
         VULKAN_API_CALL(vkCreateSwapchainKHR(device, &createInfo, nullptr, &m_swapChain));
 
-        vkGetSwapchainImagesKHR(device, m_swapChain, &imageCount, nullptr);
+        VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_swapChain, &imageCount, nullptr));
         m_swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(device, m_swapChain, &imageCount, m_swapChainImages.data());
+        VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_swapChain, &imageCount, m_swapChainImages.data()));
+
+        // m_semaphore = std::make_unique<TimelineSemaphore>();
+        // m_semaphore->Init(m_context);
+
+        VkFenceCreateInfo fence_info = {};
+        fence_info.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+        VULKAN_API_CALL(vkCreateFence(m_context->getDevice(), &fence_info, nullptr, &m_fence));
+
+        // /* Change image layout from VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR. */
+        // std::vector<VkImageMemoryBarrier> barriers;
+        // barriers.resize(imageCount);
+        // 
+        // for (int i = 0; i < imageCount; i++)
+        // {
+        //     VkImageMemoryBarrier& barrier = barriers[i];
+        //     barrier                       = {};
+        // 
+        //     barrier.sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        //     barrier.oldLayout                   = VK_IMAGE_LAYOUT_UNDEFINED;
+        //     barrier.newLayout                   = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        //     barrier.image                       = m_swapChainImages[i];
+        //     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        //     barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        //     barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+        // }
+        // 
+        // auto& command_buffers = m_context->GetCommandBuffers();
+        // command_buffers.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, barriers);
+        // command_buffers.Submit();
 
         m_swapChainImageFormat = surfaceFormat.format;
         m_swapChainExtent      = extent;
@@ -90,11 +120,11 @@ namespace Chandelier
         m_swapChainImageViews.resize(m_swapChainImages.size());
         for (size_t i = 0; i < m_swapChainImages.size(); i++)
         {
-            VkImageViewCreateInfo createInfo {};
-            createInfo.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            createInfo.image    = m_swapChainImages[i];
-            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            createInfo.format   = m_swapChainImageFormat;
+            VkImageViewCreateInfo createInfo = {};
+            createInfo.sType                 = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image                 = m_swapChainImages[i];
+            createInfo.viewType              = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format                = m_swapChainImageFormat;
 
             createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
             createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -107,115 +137,115 @@ namespace Chandelier
             createInfo.subresourceRange.baseArrayLayer = 0;
             createInfo.subresourceRange.layerCount     = 1;
 
-            VULKAN_API_CALL(
-                vkCreateImageView(device, &createInfo, nullptr, &m_swapChainImageViews[i]));
+            VULKAN_API_CALL(vkCreateImageView(device, &createInfo, nullptr, &m_swapChainImageViews[i]));
         }
-    }
 
-    void SwapChain::createRenderPass()
-    {
-        VkAttachmentDescription colorAttachment {};
-        colorAttachment.format  = m_swapChainImageFormat;
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachment.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-        colorAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout   = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-        VkAttachmentReference colorAttachmentRef {};
-        colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        VkSubpassDescription subpass {};
-        subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments    = &colorAttachmentRef;
-
-        VkAttachmentDescription depthAttachment {};
-        depthAttachment.format         = findDepthFormat();
-        depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-        depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthAttachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        VkAttachmentReference depthAttachmentRef {};
-        depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-        std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
-        VkRenderPassCreateInfo                 renderPassInfo {};
-        renderPassInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-        renderPassInfo.pAttachments    = attachments.data();
-        renderPassInfo.subpassCount    = 1;
-        renderPassInfo.pSubpasses      = &subpass;
-
-        VkSubpassDependency dependency {};
-        dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass   = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-        renderPassInfo.dependencyCount = 1;
-        renderPassInfo.pDependencies   = &dependency;
-
-        VULKAN_API_CALL(
-            vkCreateRenderPass(m_context->getDevice(), &renderPassInfo, nullptr, &m_renderPass));
-    }
-
-    void SwapChain::createDepthBuffer()
-    {
-        VkFormat depthFormat = findDepthFormat();
-
-        m_depth_image = std::make_shared<Texture>();
-        m_depth_image->InitTex2D(m_context,
-                                 m_swapChainExtent.width,
-                                 m_swapChainExtent.height,
-                                 1,
-                                 1,
-                                 depthFormat,
-                                 VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
     void SwapChain::recreate(uint32_t width, uint32_t height)
     {
-        vkDeviceWaitIdle(m_context->getDevice());
+        VULKAN_API_CALL(vkDeviceWaitIdle(m_context->getDevice()));
         destroy();
 
         createSwapChain(width, height);
-        createRenderPass();
-        createDepthBuffer();
     }
 
     void SwapChain::destroy()
     {
         const auto& device = m_context->getDevice();
 
-        vkDestroyRenderPass(device, m_renderPass, nullptr);
-
+        // m_semaphore = nullptr;
+        // m_last_signal_value = {};
+        vkDestroyFence(m_context->getDevice(), m_fence, nullptr);
+        m_fence = VK_NULL_HANDLE;
+        
         for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
         {
             vkDestroyImageView(device, m_swapChainImageViews[i], nullptr);
         }
 
         vkDestroySwapchainKHR(device, m_swapChain, nullptr);
+    }
+
+    void SwapChain::AcquireImage() {
+        const auto& device = m_context->getDevice();
+
+        // todo: optimize performance
+        VkResult result = vkAcquireNextImageKHR(
+            device, m_swapChain, UINT64_MAX, VK_NULL_HANDLE, m_fence, &m_render_image_index);
+        // m_semaphore->Wait(m_semaphore->GetValue());
+        // m_semaphore->IncreaseValue();
+        VULKAN_API_CALL(vkWaitForFences(device, 1, &m_fence, VK_TRUE, UINT64_MAX));
+        VULKAN_API_CALL(vkResetFences(device, 1, &m_fence));
+
+        if (result == VK_SUCCESS)
+        {
+            // do nothing
+        }
+        else if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            assert(0);
+            return;
+        }
+        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        {
+            assert(0);
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+        else
+        {
+            assert(0);
+            throw std::runtime_error("swapchain error!");
+        }
+    }
+
+    void SwapChain::SwapBuffer() {
+        VkPresentInfoKHR present_info = {};
+        present_info.sType            = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+        // todo: optimize performance later, for now all the draw calls block on cpu till render finished 
+        present_info.waitSemaphoreCount = 0;
+        present_info.pWaitSemaphores    = nullptr;
+
+        present_info.swapchainCount = 1;
+        present_info.pSwapchains    = &m_swapChain;
+        present_info.pImageIndices  = &m_render_image_index;
+        present_info.pResults       = nullptr;
+
+        VkResult result = vkQueuePresentKHR(m_context->getPresentQueue(), &present_info);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR )
+        {
+            assert(0);
+            return;
+        }
+        else if (result != VK_SUCCESS)
+        {
+            assert(0);
+            throw std::runtime_error("failed to present swap chain image!");
+        }
+
+        m_context->IncFrameIndex();
+    }
+
+    void SwapChain::TransferSwapchainImage(size_t index, VkImageLayout requested_layout)
+    {
+        std::vector<VkImageMemoryBarrier> barriers;
+
+        VkImageMemoryBarrier barrier        = {};
+        barrier.sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                   = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout                   = requested_layout;
+        barrier.image                       = m_swapChainImages[index];
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+        barriers.push_back(barrier);
+
+        auto& command_buffers = m_context->GetCommandBuffers();
+        command_buffers.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, barriers);
+        // command_buffers.Submit();
     }
 
     VkFormat SwapChain::findSupportedFormat(const std::vector<VkFormat>& candidates,
@@ -261,8 +291,6 @@ namespace Chandelier
     VkImageView SwapChain::getImageView(size_t index) const { return m_swapChainImageViews[index]; }
 
     size_t SwapChain::getImageCount() const { return m_swapChainImageViews.size(); }
-
-    VkRenderPass SwapChain::getRenderPass() const { return m_renderPass; }
 
     VkSwapchainKHR SwapChain::getSwapchain() const { return m_swapChain; }
 

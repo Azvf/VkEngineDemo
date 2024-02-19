@@ -6,12 +6,12 @@
 #include "runtime/core/base/exception.h"
 
 #include "Buffer.h"
-#include "RenderCfg.h"
 #include "Sampler.h"
 #include "Texture.h"
 #include "Uniform.h"
 #include "VkContext.h"
 #include "VkUtil.h"
+#include "DescriptorPool.h"
 
 namespace Chandelier
 {
@@ -53,37 +53,92 @@ namespace Chandelier
         return m_bindings.back();
     }
 
-    void DescriptorTracker::Bind(Buffer* buffer, Location loc)
+    Binding& DescriptorTracker::GetBinding(Location loc)
+    {
+        return m_bindings.at(loc.binding);
+    }
+
+    void DescriptorTracker::Bind(Buffer* buffer, Location loc, VkShaderStageFlags stages)
     {
         Binding& binding = EnsureLocation(loc);
 
         binding.type        = buffer->GetBindType();
         binding.vk_buffer   = buffer->getBuffer();
         binding.buffer_size = buffer->getSize();
+
+        binding.shader_stages = stages;
     }
 
-    void DescriptorTracker::Bind(Texture* texture, Location loc)
+    void DescriptorTracker::Bind(Texture* texture, Location loc, VkShaderStageFlags stages)
     {
         Binding& binding = EnsureLocation(loc);
 
         binding.type    = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         binding.texture = texture;
+        
+        binding.shader_stages = stages;
     }
 
-    void DescriptorTracker::Bind(Texture* texture, Sampler* sampler, Location loc)
+    void DescriptorTracker::Bind(Texture* texture, Sampler* sampler, Location loc, VkShaderStageFlags stages)
     {
         Binding& binding = EnsureLocation(loc);
 
         binding.type       = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         binding.texture    = texture;
         binding.vk_sampler = sampler->GetSampler();
+
+        binding.shader_stages = stages;
     }
 
-    void DescriptorTracker::Sync(VkDescriptorSetLayout new_layout)
+    void DescriptorTracker::BindDescriptorSet(const VkPipelineLayout pipeline_layout,
+                                              VkPipelineBindPoint    pipeline_bind_point)
     {
-        // todo: improve dirty falg situation
+        auto& command_buffers = m_context->GetCommandBuffers();
+        command_buffers.BindDescriptorSet(GetResource()->Handle(), pipeline_layout, pipeline_bind_point);
+    }
 
-        bool  dirty      = !m_bindings.empty() || AssignIfDiff(m_active_desc_layout, new_layout);
+    VkDescriptorSetLayoutBinding DescriptorTracker::CreateLayoutBinding(const Binding& binding)
+    {
+        VkDescriptorSetLayoutBinding layout_binding = {};
+        layout_binding.binding                      = binding.location.binding;
+        layout_binding.descriptorType               = binding.type;
+        layout_binding.descriptorCount              = 1;
+        layout_binding.stageFlags                   = binding.shader_stages;
+        layout_binding.pImmutableSamplers           = nullptr;
+
+        return layout_binding;
+    }
+
+    VkDescriptorSetLayout DescriptorTracker::CreateLayout()
+    {
+        VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
+
+        std::vector<VkDescriptorSetLayoutBinding> vk_set_layout_bindings;
+
+        for (auto& binding : m_bindings)
+        {
+            vk_set_layout_bindings.push_back(DescriptorTracker::CreateLayoutBinding(binding));
+        }
+
+        VkDescriptorSetLayoutCreateInfo layout_create_info = {};
+        layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layout_create_info.bindingCount = vk_set_layout_bindings.size();
+        layout_create_info.pBindings    = vk_set_layout_bindings.data();
+        VULKAN_API_CALL(vkCreateDescriptorSetLayout(m_context->getDevice(), &layout_create_info, nullptr, &set_layout));
+
+        return set_layout;
+    }
+
+    void DescriptorTracker::Sync(/*VkDescriptorSetLayout new_layout*/)
+    {
+        // bool  dirty      = !m_bindings.empty() || AssignIfDiff(m_active_desc_layout, new_layout);
+        bool dirty = !m_bindings.empty();
+
+        if (dirty)
+        {
+            m_active_desc_layout = CreateLayout();
+        }
+
         auto& descriptor = UpdateResources(m_context.get(), dirty);
         VkDescriptorSet dst_set = descriptor->Handle();
 
@@ -165,7 +220,7 @@ namespace Chandelier
         m_bindings.clear();
     }
 
-    std::unique_ptr<Descriptor> DescriptorTracker::CreateResource()
+    std::shared_ptr<Descriptor> DescriptorTracker::CreateResource()
     {
         return m_context->GetDescriptorPools().AllocDescriptor(m_active_desc_layout);
     }

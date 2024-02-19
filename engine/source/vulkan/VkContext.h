@@ -1,11 +1,12 @@
 #pragma once
 
-#include <optional>
+#include "render/base/render_pass.h"
 
 #include "CommandBuffers.h"
 #include "DescriptorPool.h"
+#include "Sampler.h"
 #include "SwapChain.h"
-#include "vulkan/VkCreateInfo.h"
+#include "VkCommon.h"
 
 namespace Chandelier
 {
@@ -25,8 +26,6 @@ namespace Chandelier
         bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
     };
 
-    const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
     struct SwapChainSupportDetails
     {
         VkSurfaceCapabilitiesKHR        capabilities;
@@ -39,71 +38,83 @@ namespace Chandelier
     {
     public:
         explicit VKContext(std::shared_ptr<WindowSystem> window_system);
-        ~VKContext();
+        virtual ~VKContext();
 
-        VkInstance       getInstance() const;
-        VkDevice         getDevice() const;
-        VkPhysicalDevice getPhysicalDevice() const;
-        VkQueue          getGraphicsQueue() const;
-        VkQueue          getPresentQueue() const;
-        VkSurfaceKHR     getSurface() const;
-        // VkPhysicalDeviceFeatures getDeviceFeatures() const;
-        // VkPhysicalDeviceFeatures getEnabledDeviceFeatures() const;
-        // VkPhysicalDeviceProperties getDeviceProperties() const;
-        uint32_t    getGraphicsQueueFamilyIndex() const;
-        VkQueryPool getQueryPool() const;
+        void Initialize();
+        void UnInit();
 
-        CommandBuffers& GetCommandBuffers();
+        VkInstance                getInstance() const;
+        VkDevice                  getDevice() const;
+        VkPhysicalDevice          getPhysicalDevice() const;
+        VkQueue                   getGraphicsQueue() const;
+        VkQueue                   getPresentQueue() const;
+        VkSurfaceKHR              getSurface() const;
+        VkPhysicalDeviceFeatures2 getDeviceFeatures() const;
+        uint32_t                  getGraphicsQueueFamilyIndex() const;
+        VkQueryPool               getQueryPool() const;
+
+        CommandBuffers&  GetCommandBuffers();
         DescriptorPools& GetDescriptorPools();
+        SwapChain&       GetSwapchain();
 
     public:
-        void TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout);
-        void CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture);
+        void TransiteTextureLayout(Texture* texture, VkImageLayout new_layout);
+        void CopyBufferToTexture(Buffer* buffer, Texture* texture);
 
-        void FlushMappedBuffers(std::vector<std::shared_ptr<Buffer>> mapped_buffers);
+        void FlushMappedBuffers(std::vector<Buffer*> mapped_buffers);
 
-        QueueFamilyIndices FindQueueFamilies();
-        uint32_t           FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-        bool               DeviceSuitable();
-        bool               CheckDeviceExtensionSupport();
-        SwapChainSupportDetails QuerySwapChainSupport();
+        QueueFamilyIndices      FindQueueFamilies(VkPhysicalDevice phy_device);
+        uint32_t                FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+        bool                    DeviceSuitable(VkPhysicalDevice phy_device);
+        bool                    CheckDeviceExtensionSupport(VkPhysicalDevice phy_device);
+        SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice phy_device);
+
+        void                        IncFrameIndex();
+        const std::atomic_uint64_t& GetFrameIndex();
+
+        Sampler& GetSampler(const GPUSamplerState& sampler_state);
+
+        void SwapBuffer();
+
+        void TransferRenderPassResultToSwapchain(const RenderPass* render_pass);
 
     private:
+        bool CheckValidationLayerSupport();
+
+        std::vector<const char*> GetRequiredExtensions();
+        
         VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates,
                                      VkImageTiling                tiling,
                                      VkFormatFeatureFlags         features);
+
         VkFormat FindDepthFormat();
 
     private:
         std::shared_ptr<WindowSystem> m_window_system;
 
-        VkInstance               m_instance;
-        VkDebugUtilsMessengerEXT m_debugUtilsMessenger;
-        VkPhysicalDevice         m_physicalDevice;
-        VkDevice                 m_device;
-        VkSurfaceKHR             m_surface;
-        VkQueue                  m_graphicsQueue;
-        VkQueue                  m_presentQueue;
-        uint32_t                 m_graphicsQueueFamilyIndex;
+        VkInstance                 m_instance;
+        VkDebugUtilsMessengerEXT   m_debugUtilsMessenger;
+        VkPhysicalDevice           m_physicalDevice;
+        VkDevice                   m_device;
+        VkSurfaceKHR               m_surface;
+        VkQueue                    m_graphicsQueue;
+        VkQueue                    m_presentQueue;
+        uint32_t                   m_graphicsQueueFamilyIndex;
+        VkPhysicalDeviceProperties m_properties;
 
-        // VkDescriptorPool m_descriptorPool;
-        VkQueryPool      m_queryPool;
+        /** Features support. */
+        VkPhysicalDeviceFeatures2        m_features      = {};
+        VkPhysicalDeviceVulkan11Features m_vk11_features = {};
+        VkPhysicalDeviceVulkan12Features m_vk12_features = {};
+
+        VkQueryPool m_queryPool;
 
         CommandBuffers  m_command_buffers;
         SwapChain       m_swapchain;
         DescriptorPools m_desc_pools;
+        SamplerManager  m_sampler_manager;
 
-        // VkSwapchainKHR                  m_swapchain;
-        // std::vector<VkImage>            m_swapchainImages;
-        // std::vector<VkImageView>        m_swapchainImageViews;
-        // VkPhysicalDeviceFeatures m_features;
-        // VkPhysicalDeviceFeatures m_enabledFeatures;
-        // VkPhysicalDeviceProperties m_properties;
-        //
-        // VkImage						m_depthImage;
-        // VkImage						m_depthImage;
-        // VkDeviceMemory				m_depthImageMemory;
-        // VkImageView					m_depthImageView;
+        std::atomic_uint64_t m_frame_index = {};
     };
 
 } // namespace Chandelier

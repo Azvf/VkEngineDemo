@@ -1,18 +1,20 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
-
 #include "render/base/render_pass_base.h"
+#include "VkCommon.h"
+#include "Framebuffer.h"
 
 namespace Chandelier
 {
     class GlobalRenderResource;
     class Descriptor;
-    class Image;
+
+    enum eAttachment : uint8_t
+    {
+        Color_Attachment        = 0,
+        DepthStencil_Attachment = 1,
+        Attachment_Max_Count
+    };
 
     struct RenderPassContext
     {
@@ -28,47 +30,24 @@ namespace Chandelier
     class RenderPass : public RenderPassBase
     {
     public:
-        // struct FrameBufferAttachment
-        // {
-        //     VkImage        image;
-        //     VkDeviceMemory mem;
-        //     VkImageView    view;
-        //     VkFormat       format;
-        // };
-
-        struct Framebuffer
-        {
-            int           width;
-            int           height;
-            VkFramebuffer framebuffer;
-            VkRenderPass  render_pass;
-
-            std::vector<std::shared_ptr<Image>> attachments;
-        };
-
-        // struct Descriptor
-        // {
-        //     VkDescriptorSetLayout layout;
-        //     VkDescriptorSet       descriptor_set;
-        // };
-
         struct RenderPipelineBase
         {
             VkPipelineLayout layout;
             VkPipeline       pipeline;
         };
 
-        VkRenderPass             getRenderPass() const;
-        std::vector<VkImageView> getFramebufferImageViews() const;
-
         virtual void Initialize(std::shared_ptr<BaseRenderPassInitInfo> info) = 0;
+
+        virtual void PreDrawSetup() = 0;
+        virtual void Draw() = 0;
+        virtual void PostDrawCallback() = 0;
 
         std::shared_ptr<GlobalRenderResource> m_global_render_resource;
 
-        std::vector<Descriptor>         m_descriptor_infos;
-        std::vector<RenderPipelineBase> m_render_pipelines;
-        Framebuffer                     m_framebuffer;
-
+        // std::vector<Descriptor>         m_descriptor_infos;
+        // std::vector<RenderPipelineBase> m_render_pipelines;
+        std::vector<Framebuffer> m_framebuffers;
+        
         RenderPassContext m_context;
     };
 

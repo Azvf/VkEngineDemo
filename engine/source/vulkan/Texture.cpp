@@ -59,7 +59,7 @@ namespace Chandelier
         // fixme
         VkImageAspectFlags aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
 
-        VkImageMemoryBarrier barrier {};
+        VkImageMemoryBarrier barrier = {};
         barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout                       = current_layout;
         barrier.newLayout                       = requested_layout;
@@ -100,9 +100,9 @@ namespace Chandelier
         image_info.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         image_info.flags             = 0;
         image_info.imageType         = m_image_type;
-        image_info.extent.width      = m_height;
-        image_info.extent.height     = m_width;
-        image_info.extent.depth      = m_depth;
+        image_info.extent.width      = m_width;
+        image_info.extent.height     = m_height;
+        image_info.extent.depth      = m_layers;
         image_info.mipLevels         = std::max((int)m_mip_levels, 1);
         image_info.arrayLayers       = 1;
         image_info.format            = m_format;
@@ -122,7 +122,7 @@ namespace Chandelier
         VkMemoryRequirements mem_requirements;
         vkGetImageMemoryRequirements(device, m_image, &mem_requirements);
 
-        VkMemoryAllocateInfo alloc_info {};
+        VkMemoryAllocateInfo alloc_info = {};
         alloc_info.sType          = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         alloc_info.allocationSize = mem_requirements.size;
         alloc_info.memoryTypeIndex =
@@ -136,7 +136,8 @@ namespace Chandelier
 
         VkImageAspectFlags aspect_flags = ConvertToAspectFlags(m_usage);
 
-        VkImageViewCreateInfo view_info {};
+        VkImageView           view;
+        VkImageViewCreateInfo view_info = {};
         view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         view_info.image                           = m_image;
         view_info.viewType                        = m_view_type;
@@ -147,7 +148,9 @@ namespace Chandelier
         view_info.subresourceRange.baseArrayLayer = 0;
         view_info.subresourceRange.layerCount     = m_layers;
 
-        VULKAN_API_CALL(vkCreateImageView(device, &view_info, nullptr, &m_view.value()));
+        VULKAN_API_CALL(vkCreateImageView(device, &view_info, nullptr, &view));
+
+        m_view.emplace(view);
     }
 
     void Texture::InitTex2D(std::shared_ptr<VKContext> context,
@@ -159,9 +162,11 @@ namespace Chandelier
                             VkImageUsageFlags          usage,
                             VkMemoryPropertyFlags      mem_props)
     {
+        m_context = context;
+
         m_width  = width;
         m_height = height;
-        m_depth  = layers;
+        m_layers  = layers;
 
         int mip_len_max = 1 + floorf(log2f(std::max(width, height)));
         m_mip_levels    = std::min(mip_len, mip_len_max);
@@ -197,6 +202,27 @@ namespace Chandelier
         return;
     }
 
+    void Texture::Sync(const uint8_t* data)
+    {
+        auto staging_buffer = std::make_unique<Buffer>();
+
+        VkDeviceSize data_size = m_width * m_height * 4;
+        staging_buffer->Allocate(m_context,
+                                 data_size,
+                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+
+        staging_buffer->map();
+        staging_buffer->Update(reinterpret_cast<const uint8_t*>(data), data_size);
+        staging_buffer->Flush();
+        staging_buffer->unmap();
+
+        m_context->CopyBufferToTexture(staging_buffer.get(), this);
+
+        m_context->GetCommandBuffers().Submit();
+    }
+
     VkImageView Texture::getView()
     {
         EnsureImageView();
@@ -230,8 +256,6 @@ namespace Chandelier
     uint32_t Texture::getWidth() const { return m_width; }
 
     uint32_t Texture::getHeight() const { return m_height; }
-
-    uint32_t Texture::getDepth() const { return m_depth; }
 
     uint32_t Texture::getLevels() const { return m_mip_levels; }
 

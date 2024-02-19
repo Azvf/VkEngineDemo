@@ -1,26 +1,26 @@
 #pragma once
 
-#include <memory>
-#include <vector>
+#include "VkCommon.h"
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+namespace Chandelier
+{
+    class Shader
+    {
+    public:
+        Shader() = default;
+        ~Shader();
 
-#include "VkCreateInfo.h"
+        void Initialize(std::shared_ptr<VKContext> context, const uint8_t* code, uint64_t size);
+        void UnInit();
 
-namespace Chandelier {
-	class Shader {
-	public:
-		Shader() = default;
-		~Shader();
+        bool IsInitialized() const { return m_shader_module != VK_NULL_HANDLE; }
 
-		void Initialize(const ShaderCreateInfo& info, std::vector<uint8_t>& code);
-		static std::shared_ptr<Shader> Create(const ShaderCreateInfo& info, std::vector<uint8_t>& code);
+        const VkShaderModule& GetModule() const { return m_shader_module; }
 
-	private:
-		VkShaderModule		shader_module;
+    private:
+        VkShaderModule m_shader_module = VK_NULL_HANDLE;
 
-		ShaderCreateInfo	info;
-	};
+        std::shared_ptr<VKContext> m_context;
+    };
 
-}
+} // namespace Chandelier

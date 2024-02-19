@@ -1,19 +1,42 @@
 #include "Engine.h"
 
-namespace Chandelier {
-	Engine::Engine()
-		: m_window(WIDTH, HEIGHT, "Vk Engine Demo"),
-			m_renderer((GLFWwindow*)m_window.getWindowHandle(), WIDTH, HEIGHT)
-	{
-	}
+#include "runtime/framework/global/global_context.h"
+#include "UI/window_system.h"
+#include "render/base/render_system.h"
 
-	void Engine::run()
-	{
-		while (!m_window.shouldClose()) {
-			if (!m_window.isIconified()) {
-				m_window.PollEvents();
-				m_renderer.Render(WIDTH, HEIGHT, m_window.getUserInput());
-			}
-		}
-	}
-}
+namespace Chandelier
+{
+    Engine::Engine() {}
+
+    void Engine::Initialize()
+    {
+        g_context.StartSystems("config path");
+
+        m_window_system = std::make_shared<WindowSystem>(Vector2i {1280, 720}, "tiny engine");
+        m_window_system->Initialize();
+
+        m_render_system = std::make_shared<RenderSystem>();
+        m_render_system->Initialize(m_window_system);
+    }
+
+    void Engine::UnInit()
+    {
+        g_context.ShutdownSystems();
+        m_render_system = nullptr;
+        m_window_system = nullptr;
+    }
+
+    void Engine::Run()
+    {
+        m_render_system->PreRenderSetup();
+
+        while (!m_window_system->ShouldClose())
+        {
+            if (!m_window_system->IsIconified())
+            {
+                m_window_system->PollEvents();
+                m_render_system->Render();
+            }
+        }
+    }
+} // namespace Chandelier

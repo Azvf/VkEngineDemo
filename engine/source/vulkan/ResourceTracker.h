@@ -69,7 +69,7 @@ namespace Chandelier
     class ResourceTracker
     {
         SubmissionTracker               m_sub_tracker;
-        std::vector<std::unique_ptr<T>> m_resources;
+        std::vector<std::shared_ptr<T>> m_resources;
 
     protected:
         ResourceTracker<T>() = default;
@@ -102,7 +102,7 @@ namespace Chandelier
          * the resource should not be stored outside this class as it might
          * be destroyed when the next submission is detected.
          */
-        std::unique_ptr<T>& UpdateResources(VKContext* context, const bool is_dirty)
+        std::shared_ptr<T>& UpdateResources(VKContext* context, const bool is_dirty)
         {
             // if (m_sub_tracker.Changed(context))
             // {
@@ -115,7 +115,7 @@ namespace Chandelier
             // }
             if (m_resources.empty())
             {
-                m_resources.push_back(CreateResource(context));
+                m_resources.push_back(CreateResource());
             }
 
             return GetResource();
@@ -124,7 +124,7 @@ namespace Chandelier
         /**
          * Callback to create a new resource. Can be called by the `tracked_resource_for` method.
          */
-        virtual std::unique_ptr<T> CreateResource() = 0;
+        virtual std::shared_ptr<T> CreateResource() = 0;
 
         /**
          * Does this instance have an active resource.
@@ -134,7 +134,7 @@ namespace Chandelier
         /**
          * Return the active resource of the tracker.
          */
-        std::unique_ptr<T>& GetResource() { return m_resources.back(); }
+        std::shared_ptr<T>& GetResource() { return m_resources.back(); }
 
     private:
         void FreeTrackedResources() { m_resources.clear(); }

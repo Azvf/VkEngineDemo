@@ -38,6 +38,7 @@ namespace Chandelier {
 
 enum EngineCode {
     Base_Engine_Code            = 2568,
+    General_Assert_Code,
     Buffer_Size_Not_Match,
     Image_Layout_Not_Supported,
     None_Suitable_Mem_Type,
@@ -57,12 +58,15 @@ enum EngineCode {
     do {                                                                    \
         VkResult result = vulkan_api;                                       \
         if( result != VK_SUCCESS ) {                                        \
-            assert(0);                                                      \
             std::ostringstream err_log;                                     \
             err_log << #vulkan_api << " returned error " << result;         \
             throw EngineException<VkResult>::MakeEngineException(           \
                 err_log.str(), result, __FUNCTION__, __FILE__, __LINE__     \
             );                                                              \
+        }                                                                   \
+        else                                                                \
+        {                                                                   \
+            /*std::cout << #vulkan_api << " returned error " << result << std::endl;*/ \
         }                                                                   \
     } while (0)
 

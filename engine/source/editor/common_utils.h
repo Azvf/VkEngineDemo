@@ -1,8 +1,11 @@
 #pragma once
 
 #include <filesystem>
+#include <vector>
 
-namespace Utils {
-	std::filesystem::path getCurrentProcessDirectory();
+namespace Chandelier
+{
+    std::filesystem::path GetExeDirPath();
+    std::vector<char>     readBinaryFile(const char* filepath);
 
-}
+} // namespace Utils

@@ -1,26 +1,23 @@
 #pragma once
 
-#include <vector>
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
-
-#include "Window.h"
-#include "Renderer.h"
+#include <memory>
 
 namespace Chandelier {
-	const uint32_t WIDTH = 1280;
-	const uint32_t HEIGHT = 720;
+    class WindowSystem;
+    class RenderSystem;
 
 	class Engine {
 	public:
 		Engine();
 
+		void Initialize();
+        void UnInit();
+
 	public:
-		void run();
+		void Run();
 
 	private:
-		Window m_window;
-		Renderer m_renderer;
+        std::shared_ptr<WindowSystem> m_window_system;
+        std::shared_ptr<RenderSystem> m_render_system;
 	};
 }

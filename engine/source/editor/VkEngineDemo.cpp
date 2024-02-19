@@ -2,8 +2,10 @@
 
 int main() {
 	Chandelier::Engine engine;
-	
-	engine.run();
+    
+	engine.Initialize();
+	engine.Run();
+    engine.UnInit();
 
 	return 0;
 }

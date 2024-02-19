@@ -4,10 +4,12 @@
 #include <iostream>
 #include <thread>
 
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
 #include "runtime/core/base/exception.h"
 #include "UI/window_system.h"
 
-#include "RenderCfg.h"
 #include "SwapChain.h"
 #include "Texture.h"
 #include "Buffer.h"
@@ -44,39 +46,62 @@ namespace Chandelier {
         createInfo.pfnUserCallback = debugCallback;
     }
 
-    VKContext::VKContext(std::shared_ptr<WindowSystem> window_system) : m_window_system(window_system)
-    {
+#ifdef NDEBUG
+    const bool enableValidationLayers = false;
+#else
+    const bool enableValidationLayers = true;
+#endif
+    
+    const std::vector<const char*> instanceExtensions = {
+        VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME,
+    };
+
+    const std::vector<const char*> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
+    };
+
+    const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+
+    VKContext::VKContext(std::shared_ptr<WindowSystem> window_system) : m_window_system(window_system) {}
+
+    VKContext::~VKContext() { UnInit(); }
+
+    void VKContext::Initialize() {
         // create VkInstance
         {
-            if (enableValidationLayers && !checkValidationLayerSupport()) {
+            if (enableValidationLayers && !CheckValidationLayerSupport())
+            {
                 throw std::runtime_error("validation layers requested, but not available!");
             }
 
-            VkApplicationInfo appInfo{};
-            appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-            appInfo.pApplicationName = "Hello Triangle";
+            VkApplicationInfo appInfo {};
+            appInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+            appInfo.pApplicationName   = "Application Name: tiny engine";
             appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-            appInfo.pEngineName = "No Engine";
-            appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-            appInfo.apiVersion = VK_API_VERSION_1_0;
+            appInfo.pEngineName        = "Engine Name: tiny engine";
+            appInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
+            appInfo.apiVersion         = VK_API_VERSION_1_2;
 
-            VkInstanceCreateInfo createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+            VkInstanceCreateInfo createInfo {};
+            createInfo.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
             createInfo.pApplicationInfo = &appInfo;
 
-            auto extensions = getRequiredExtensions();
-            createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+            auto extensions                    = GetRequiredExtensions();
+            createInfo.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
             createInfo.ppEnabledExtensionNames = extensions.data();
 
-            VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-            if (enableValidationLayers) {
-                createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo {};
+            if (enableValidationLayers)
+            {
+                createInfo.enabledLayerCount   = static_cast<uint32_t>(validationLayers.size());
                 createInfo.ppEnabledLayerNames = validationLayers.data();
 
                 populateDebugMessengerCreateInfo(debugCreateInfo);
                 createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
             }
-            else {
+            else
+            {
                 createInfo.enabledLayerCount = 0;
 
                 createInfo.pNext = nullptr;
@@ -87,83 +112,119 @@ namespace Chandelier {
 
         // create debug messenger
         {
-            if (enableValidationLayers) {
+            if (enableValidationLayers)
+            {
                 VkDebugUtilsMessengerCreateInfoEXT createInfo;
                 populateDebugMessengerCreateInfo(createInfo);
 
-                VULKAN_API_CALL(createDebugUtilsMessengerEXT(
-                    m_instance, &createInfo, nullptr, &m_debugUtilsMessenger));
+                VULKAN_API_CALL(createDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugUtilsMessenger));
             }
         }
 
-        // create surface 
-        m_surface = window_system->CreateSurface(shared_from_this());
+        // create surface
+        m_surface = m_window_system->CreateSurface(shared_from_this());
 
         // pick physical device
         {
             uint32_t deviceCount = 0;
             vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-            if (deviceCount == 0) {
+            if (deviceCount == 0)
+            {
                 throw std::runtime_error("failed to find GPUs with Vulkan support!");
             }
             std::vector<VkPhysicalDevice> devices(deviceCount);
             vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
 
-            for (const auto& device : devices) {
-                if (DeviceSuitable()) {
+            for (const auto& device : devices)
+            {
+                if (DeviceSuitable(device))
+                {
                     m_physicalDevice = device;
+                    // vkGetPhysicalDeviceFeatures(m_physicalDevice, &m_features);
+
+                    // more comprehend features
+                    VkPhysicalDeviceFeatures2 features2 = {};
+                    features2.sType                     = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                    m_vk11_features.sType               = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+                    m_vk12_features.sType               = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+
+                    m_vk11_features.pNext = &m_vk12_features;
+                    features2.pNext       = &m_vk11_features;
+
+                    vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features2);
+                    m_features = features2;
+
+                    vkGetPhysicalDeviceProperties(m_physicalDevice, &m_properties);
                     break;
                 }
             }
 
-            if (m_physicalDevice == VK_NULL_HANDLE) {
+            if (m_physicalDevice == VK_NULL_HANDLE)
+            {
                 throw std::runtime_error("failed to find a suitable GPU!");
             }
-
         }
 
         // create logical device
         {
-            QueueFamilyIndices indices = FindQueueFamilies();
+            QueueFamilyIndices indices = FindQueueFamilies(m_physicalDevice);
 
             uint32_t adapter_index = static_cast<uint32_t>(indices.graphicsFamily.value());
-            if (adapter_index >= 0) {
+            if (adapter_index >= 0)
+            {
                 m_graphicsQueueFamilyIndex = adapter_index;
             }
 
             std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-            std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+            std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
             float queuePriority = 1.0f;
-            for (uint32_t queueFamily : uniqueQueueFamilies) {
-                VkDeviceQueueCreateInfo queueCreateInfo{};
-                queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            for (uint32_t queueFamily : uniqueQueueFamilies)
+            {
+                VkDeviceQueueCreateInfo queueCreateInfo {};
+                queueCreateInfo.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
                 queueCreateInfo.queueFamilyIndex = queueFamily;
-                queueCreateInfo.queueCount = 1;
+                queueCreateInfo.queueCount       = 1;
                 queueCreateInfo.pQueuePriorities = &queuePriority;
                 queueCreateInfos.push_back(queueCreateInfo);
             }
 
-            VkPhysicalDeviceFeatures deviceFeatures{};
+            VkPhysicalDeviceFeatures deviceFeatures {};
 
-            VkDeviceCreateInfo createInfo{};
+            VkDeviceCreateInfo createInfo {};
             createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
             createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-            createInfo.pQueueCreateInfos = queueCreateInfos.data();
+            createInfo.pQueueCreateInfos    = queueCreateInfos.data();
 
             createInfo.pEnabledFeatures = &deviceFeatures;
 
-            createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+            createInfo.enabledExtensionCount   = static_cast<uint32_t>(deviceExtensions.size());
             createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
-            if (enableValidationLayers) {
-                createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            if (enableValidationLayers)
+            {
+                createInfo.enabledLayerCount   = static_cast<uint32_t>(validationLayers.size());
                 createInfo.ppEnabledLayerNames = validationLayers.data();
             }
-            else {
+            else
+            {
                 createInfo.enabledLayerCount = 0;
             }
+
+            VkPhysicalDeviceFeatures enabled_features  = {};
+            enabled_features.drawIndirectFirstInstance = VK_TRUE;
+            enabled_features.samplerAnisotropy         = m_features.features.samplerAnisotropy;
+            createInfo.pEnabledFeatures                = &enabled_features;
+
+            // https://stackoverflow.com/questions/60592369/vulkan-timeline-semaphore-extension-cannot-be-enabled
+            // timeline semaphore features needs to be set explictly like this
+            VkPhysicalDeviceVulkan12Features vk12_features = {};
+            vk12_features.sType                            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+            vk12_features.pNext                            = nullptr;
+            vk12_features.timelineSemaphore = true;
+
+            createInfo.pNext = &vk12_features;
 
             VULKAN_API_CALL(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device));
 
@@ -171,55 +232,27 @@ namespace Chandelier {
             vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
         }
 
-        // create command pool
-        // {
-        //     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice, m_surface);
-        // 
-        //     VkCommandPoolCreateInfo poolInfo{};
-        //     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        //     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        //     poolInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-        // 
-        //     if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_graphicsCommandPool) != VK_SUCCESS) {
-        //         throw std::runtime_error("failed to create command pool!");
-        //     }
-        // }
         m_command_buffers.Initialize(shared_from_this());
-
-        // // create descriptor pool
-        // {
-        //     std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        //     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        //     poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        //     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        //     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        // 
-        //     VkDescriptorPoolCreateInfo poolInfo{};
-        //     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        //     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        //     poolInfo.pPoolSizes = poolSizes.data();
-        //     poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        // 
-        //     VULKAN_API_CALL(
-        //         vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
-        // }
 
         m_desc_pools.Initialize(shared_from_this());
 
         Vector2i window_size = m_window_system->GetWindowSize();
         m_swapchain.Initialize(shared_from_this(), window_size.x, window_size.y);
 
+        m_sampler_manager.Initialize(shared_from_this());
     }
 
-    VKContext::~VKContext() {
-        m_swapchain.Free();
+    void VKContext::UnInit()
+    {
+        m_swapchain.UnInit();
         m_command_buffers.Free();
         m_desc_pools.Free();
         vkDestroyDevice(m_device, nullptr);
 
         if (enableValidationLayers)
         {
-            if (auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT"))
+            if (auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+                    m_instance, "vkDestroyDebugUtilsMessengerEXT"))
             {
                 func(m_instance, m_debugUtilsMessenger, nullptr);
             }
@@ -228,6 +261,7 @@ namespace Chandelier {
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
     }
+
 
     VkInstance VKContext::getInstance() const
     {
@@ -259,10 +293,14 @@ namespace Chandelier {
         return m_surface;
     }
 
+    VkPhysicalDeviceFeatures2 VKContext::getDeviceFeatures() const { return m_features; }
+
     DescriptorPools& VKContext::GetDescriptorPools()
     {
         return m_desc_pools;
     }
+
+    SwapChain& VKContext::GetSwapchain() { return m_swapchain; }
 
     uint32_t VKContext::getGraphicsQueueFamilyIndex() const {
         return m_graphicsQueueFamilyIndex;
@@ -275,135 +313,6 @@ namespace Chandelier {
     CommandBuffers& VKContext::GetCommandBuffers() { 
         return m_command_buffers;
     }
-
-    //void VKContext::CreateSwapchain() {
-    //    // create SwapChain
-    //    SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_physicalDevice, m_surface);
-
-    //    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-    //    VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-
-    //    Vector2i size = m_window_system->GetFramebufferSize();
-    //    
-    //    VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, size.x, size.y);
-
-    //    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-    //    if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-    //        imageCount = swapChainSupport.capabilities.maxImageCount;
-    //    }
-
-    //    VkSwapchainCreateInfoKHR createInfo{};
-    //    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    //    createInfo.surface = m_surface;
-    //    createInfo.minImageCount = imageCount;
-    //    createInfo.imageFormat = surfaceFormat.format;
-    //    createInfo.imageColorSpace = surfaceFormat.colorSpace;
-    //    createInfo.imageExtent = extent;
-    //    createInfo.imageArrayLayers = 1;
-    //    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    //    QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice, m_surface);
-    //    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
-
-    //    if (indices.graphicsFamily != indices.presentFamily) {
-    //        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-    //        createInfo.queueFamilyIndexCount = 2;
-    //        createInfo.pQueueFamilyIndices = queueFamilyIndices;
-    //    }
-    //    else {
-    //        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    //    }
-
-    //    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-    //    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    //    createInfo.presentMode = presentMode;
-    //    createInfo.clipped = VK_TRUE;
-    //    createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-    //    VULKAN_API_CALL(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain)); 
-
-    //    vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, nullptr);
-    //    m_swapchainImages.resize(imageCount);
-    //    vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, m_swapchainImages.data());
-
-    //    // create image view
-    //    m_swapchainImageViews.resize(m_swapchainImages.size());
-    //    for (size_t i = 0; i < m_swapchainImages.size(); i++) {
-    //        VkImageViewCreateInfo createInfo{};
-    //        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    //        createInfo.image = m_swapchainImages[i];
-    //        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    //        createInfo.format = surfaceFormat.format;
-
-    //        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    //        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    //        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    //        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-    //        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    //        createInfo.subresourceRange.baseMipLevel = 0;
-    //        createInfo.subresourceRange.levelCount = 1;
-    //        createInfo.subresourceRange.baseArrayLayer = 0;
-    //        createInfo.subresourceRange.layerCount = 1;
-
-    //        VULKAN_API_CALL(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchainImageViews[i]));
-    //    }
-
-    //    // VkImageCreateInfo image_create_info{};
-    //    // image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    //    // image_create_info.flags = 0;
-    //    // image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    //    // image_create_info.extent.width = extent.width;
-    //    // image_create_info.extent.height = extent.height;
-    //    // image_create_info.extent.depth = 1;
-    //    // image_create_info.mipLevels = 1;
-    //    // image_create_info.arrayLayers = 1;
-    //    // image_create_info.format = FindDepthFormat();
-    //    // image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    //    // image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    //    // image_create_info.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    //    // image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    //    // image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    //    // 
-    //    // // @todo: optimize createImage interface to simplify image info init
-    //    // createImage(
-    //    //     m_physicalDevice, 
-    //    //     m_device, 
-    //    //     image_create_info,
-    //    //     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    //    //     m_depthImage,
-    //    //     m_depthImageMemory
-    //    // );
-    //}
-
-    //void VKContext::RecreateSwapChain() {
-    //    //int width = 0, height = 0;
-    //    Vector2i size = m_window_system->GetFramebufferSize();
-    //    while (size.x == 0 || size.y == 0)
-    //    {
-    //        // minimized 0,0, pause for now
-    //        size = m_window_system->GetFramebufferSize();
-    //        m_window_system->WaitEvents();
-    //        //std::this_thread::sleep_for(1ms);
-    //    }
-
-    //    vkDeviceWaitIdle(m_device);
-    //    ClearSwapChain();
-
-    //    CreateSwapchain();
-    //}
-
-    //void VKContext::ClearSwapChain() {
-    //    // vkDestroyImageView(m_device, m_depthImageView, nullptr);
-    //    // vkDestroyImage(m_device, m_depthImage, nullptr);
-    //    // vkFreeMemory(m_device, m_depthImageMemory, nullptr);
-
-    //    for (auto imageView : m_swapchainImageViews)
-    //    {
-    //        vkDestroyImageView(m_device, imageView, NULL);
-    //    }
-    //    vkDestroySwapchainKHR(m_device, m_swapchain, NULL); // also swapchain images
-    //}
 
     VkFormat VKContext::FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
         for (VkFormat format : candidates) {
@@ -418,7 +327,7 @@ namespace Chandelier {
             }
         }
 
-        throw std::runtime_error("failed to find supported format!");
+        ENGINE_THROW_ERROR("failed to find supported format!", EngineCode::General_Assert_Code);
     }
 
     VkFormat VKContext::FindDepthFormat() {
@@ -429,7 +338,7 @@ namespace Chandelier {
         );
     }
 
-    void VKContext::TransiteTextureLayout(std::shared_ptr<Texture> texture, VkImageLayout new_layout) {
+    void VKContext::TransiteTextureLayout(Texture* texture, VkImageLayout new_layout) {
         VkImageMemoryBarrier barrier{};
         VkImageLayout old_layout = texture->getLayout();
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -471,21 +380,21 @@ namespace Chandelier {
             destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         }
         else {
-            ENGINE_THROW_ERROR("image layout transfer not supported", EngineCode::Image_Layout_Not_Supported);
+            ENGINE_THROW_ERROR("image layout transfer not supported", EngineCode::General_Assert_Code);
         }
         
         m_command_buffers.IssuePipelineBarrier(
             sourceStage, destinationStage, std::vector<VkImageMemoryBarrier> {barrier});
     }
 
-    void VKContext::CopyBufferToTexture(std::shared_ptr<Buffer> buffer, std::shared_ptr<Texture> texture) {
+    void VKContext::CopyBufferToTexture(Buffer* buffer, Texture* texture) {
         VkDeviceSize buffer_size = buffer->getSize();
         VkDeviceSize tex_size = texture->getWidth() * texture->getHeight() * 4;
         if (buffer_size != tex_size) {
             ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
         }
         
-        VkBufferImageCopy region{};
+        VkBufferImageCopy region = {};
         region.bufferOffset = 0;
         region.bufferRowLength = 0;
         region.bufferImageHeight = 0;
@@ -501,10 +410,10 @@ namespace Chandelier {
         m_command_buffers.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
     }
 
-    void VKContext::FlushMappedBuffers(std::vector<std::shared_ptr<Buffer>> mapped_buffers) {
+    void VKContext::FlushMappedBuffers(std::vector<Buffer*> mapped_buffers) {
         std::vector<VkMappedMemoryRange> mapped_ranges;
         
-        VkDeviceSize offset {};
+        VkDeviceSize offset = {};
         for (const auto& buffer : mapped_buffers)
         {
             VkMappedMemoryRange mappedRange {};
@@ -512,20 +421,22 @@ namespace Chandelier {
             mappedRange.memory = buffer->getMemory();
             mappedRange.offset = buffer->getOffset();
             mappedRange.size   = buffer->getSize();
+
+            mapped_ranges.push_back(mappedRange);
         }
 
-        vkFlushMappedMemoryRanges(m_device, mapped_ranges.size(), mapped_ranges.data());
+        VULKAN_API_CALL(vkFlushMappedMemoryRanges(m_device, mapped_ranges.size(), mapped_ranges.data()));
     }
 
-    QueueFamilyIndices VKContext::FindQueueFamilies()
+    QueueFamilyIndices VKContext::FindQueueFamilies(VkPhysicalDevice phy_device)
     {
         QueueFamilyIndices indices;
 
         uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
+        vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &queueFamilyCount, nullptr);
 
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, queueFamilies.data());
+        vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &queueFamilyCount, queueFamilies.data());
 
         int i = 0;
         for (const auto& queueFamily : queueFamilies)
@@ -536,7 +447,7 @@ namespace Chandelier {
             }
 
             VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, m_surface, &presentSupport);
+            VULKAN_API_CALL(vkGetPhysicalDeviceSurfaceSupportKHR(phy_device, i, m_surface, &presentSupport));
 
             if (presentSupport)
             {
@@ -570,31 +481,29 @@ namespace Chandelier {
         ENGINE_THROW_ERROR("failed to find suitable memory type!", EngineCode::None_Suitable_Mem_Type);
     }
 
-     bool VKContext::DeviceSuitable()
+    bool VKContext::DeviceSuitable(VkPhysicalDevice phy_device)
     {
-         QueueFamilyIndices indices = FindQueueFamilies();
+        QueueFamilyIndices indices = FindQueueFamilies(phy_device);
 
-        bool extensionsSupported = CheckDeviceExtensionSupport();
+        bool extensionsSupported = CheckDeviceExtensionSupport(phy_device);
 
         bool swapChainAdequate = false;
         if (extensionsSupported)
         {
-            SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport();
-            swapChainAdequate =
-                !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+            SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(phy_device);
+            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate;
     }
 
-     bool VKContext::CheckDeviceExtensionSupport()
+     bool VKContext::CheckDeviceExtensionSupport(VkPhysicalDevice phy_device)
     {
         uint32_t extensionCount;
-        vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &extensionCount, nullptr);
+        vkEnumerateDeviceExtensionProperties(phy_device, nullptr, &extensionCount, nullptr);
 
         std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-        vkEnumerateDeviceExtensionProperties(
-            m_physicalDevice, nullptr, &extensionCount, availableExtensions.data());
+        vkEnumerateDeviceExtensionProperties(phy_device, nullptr, &extensionCount, availableExtensions.data());
 
         std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 
@@ -606,35 +515,135 @@ namespace Chandelier {
         return requiredExtensions.empty();
     }
 
-     SwapChainSupportDetails VKContext::QuerySwapChainSupport()
+     SwapChainSupportDetails VKContext::QuerySwapChainSupport(VkPhysicalDevice phy_device)
     {
         SwapChainSupportDetails details;
 
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &details.capabilities);
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phy_device, m_surface, &details.capabilities);
 
         uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, nullptr);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(phy_device, m_surface, &formatCount, nullptr);
 
         if (formatCount != 0)
         {
             details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(
-                m_physicalDevice, m_surface, &formatCount, details.formats.data());
+            vkGetPhysicalDeviceSurfaceFormatsKHR(phy_device, m_surface, &formatCount, details.formats.data());
         }
 
         uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(
-            m_physicalDevice, m_surface, &presentModeCount, nullptr);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(phy_device, m_surface, &presentModeCount, nullptr);
 
         if (presentModeCount != 0)
         {
             details.presentModes.resize(presentModeCount);
             vkGetPhysicalDeviceSurfacePresentModesKHR(
-                m_physicalDevice, m_surface, &presentModeCount, details.presentModes.data());
+                phy_device, m_surface, &presentModeCount, details.presentModes.data());
         }
 
         return details;
     }
 
+    void VKContext::IncFrameIndex()
+    {
+        int frames_in_flight = m_swapchain.getImageCount();
+        m_frame_index        = (m_frame_index + 1) % frames_in_flight;
+    }
+     
+    const std::atomic_uint64_t& VKContext::GetFrameIndex() { return m_frame_index; }
+
+     Sampler& VKContext::GetSampler(const GPUSamplerState& sampler_state)
+     {
+         return m_sampler_manager.GetSampler(sampler_state);
+     }
+
+    void VKContext::SwapBuffer() { m_swapchain.SwapBuffer(); }
+
+    void VKContext::TransferRenderPassResultToSwapchain(const RenderPass* render_pass) {
+        auto render_pass_attachment = render_pass->m_framebuffers[m_frame_index].attachments[Color_Attachment];
+        auto extent = m_swapchain.getExtent();
+        std::vector<VkImageBlit> regions;
+
+        VkImageBlit blit_region {};
+        blit_region.srcOffsets[0]                 = {0, 0, 0};
+        blit_region.srcOffsets[1]                 = {(int)extent.width, (int)extent.height, 1};
+        blit_region.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit_region.srcSubresource.mipLevel       = 0;
+        blit_region.srcSubresource.baseArrayLayer = 0;
+        blit_region.srcSubresource.layerCount     = 1;
+
+        blit_region.dstOffsets[0]                 = {0, 0, 0};
+        blit_region.dstOffsets[1]                 = {(int)extent.width, (int)extent.height, 1};
+        blit_region.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit_region.dstSubresource.mipLevel       = 0;
+        blit_region.dstSubresource.baseArrayLayer = 0;
+        blit_region.dstSubresource.layerCount     = 1;
+
+        regions.push_back(blit_region);
+
+        auto render_pass_attachment_layout = render_pass_attachment->getLayout();
+
+        render_pass_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        m_swapchain.TransferSwapchainImage(m_frame_index, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        m_command_buffers.Blit(render_pass_attachment->getImage(),
+                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               m_swapchain.getImage(m_frame_index),
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               regions);
+        
+        render_pass_attachment->TransferLayout(render_pass_attachment_layout);
+        m_swapchain.TransferSwapchainImage(m_frame_index, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        
+        m_command_buffers.Submit();
+    }
+
+    std::vector<const char*> VKContext::GetRequiredExtensions()
+    {
+        std::vector<const char*> extensions;
+
+        uint32_t     glfwExtensionCount = 0;
+        const char** glfwExtensions;
+        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        extensions.insert(extensions.end(), glfwExtensions, glfwExtensions + glfwExtensionCount);
+        
+        // extensions.insert(extensions.end(), instanceExtensions.begin(), instanceExtensions.end());
+
+        if (enableValidationLayers)
+        {
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+
+        return extensions;
+    }
+
+    bool VKContext::CheckValidationLayerSupport()
+    {
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+        for (const char* layerName : validationLayers)
+        {
+            bool layerFound = false;
+
+            for (const auto& layerProperties : availableLayers)
+            {
+                if (strcmp(layerName, layerProperties.layerName) == 0)
+                {
+                    layerFound = true;
+                    break;
+                }
+            }
+
+            if (!layerFound)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 

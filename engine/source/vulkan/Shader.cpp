@@ -4,30 +4,29 @@
 
 #include "VkContext.h"
 
-namespace Chandelier {
-	Shader::~Shader() {
-		if (info.context) {
-			vkDestroyShaderModule(info.context->getDevice(), shader_module, nullptr);
-		}
-	}
+namespace Chandelier
+{
+    Shader::~Shader() { UnInit(); }
 
-	std::shared_ptr<Shader> Shader::Create(const ShaderCreateInfo& info, std::vector<uint8_t>& code) {
-		auto shader = std::make_shared<Shader>();
-		shader->Initialize(info, code);
-		return shader;
-	}
+    void Shader::Initialize(std::shared_ptr<VKContext> context, const uint8_t* code, uint64_t size)
+    {
+        m_context = context;
 
-	void Shader::Initialize(const ShaderCreateInfo& info, std::vector<uint8_t>& code) {
-		const auto& device = info.context->getDevice();
+        VkShaderModuleCreateInfo createInfo = {};
+        createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = size;
+        createInfo.pCode    = reinterpret_cast<const uint32_t*>(code);
+        
+        VULKAN_API_CALL(vkCreateShaderModule(context->getDevice(), &createInfo, nullptr, &m_shader_module));
+    }
 
-		VkShaderModuleCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = code.size();
-		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    void Shader::UnInit()
+    {
+        if (m_shader_module != VK_NULL_HANDLE)
+        {
+            vkDestroyShaderModule(m_context->getDevice(), m_shader_module, nullptr);
+        }
+        m_shader_module = VK_NULL_HANDLE;
+    }
 
-		VULKAN_API_CALL(vkCreateShaderModule(device, &createInfo, nullptr, &shader_module));
-		this->info = info;
-	}
-
-
-}
+} // namespace Chandelier

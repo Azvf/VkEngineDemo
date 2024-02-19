@@ -65,18 +65,17 @@ namespace Chandelier
         std::shared_ptr<VKContext> context;
     };
 
+    struct ImageViewInfo
+    {
+        VkFormat           format;
+        VkImageAspectFlags aspect_flags;
+    };
+
     struct ImageCreateInfo
     {
-        uint32_t                   width;
-        uint32_t                   height;
-        VkFormat                   format;
-        VkImageTiling              tiling;
-        VkImageUsageFlags          usage_flags;
-        VkMemoryPropertyFlags      mem_flags;
-        VkImageCreateFlags         create_flags;
-        uint32_t                   array_layers;
-        uint32_t                   mip_levels;
-        VkImageLayout              layout;
+        VkImageCreateInfo     image_info;
+        ImageViewInfo         view_info;
+        VkMemoryPropertyFlags mem_flags;
 
         std::shared_ptr<VKContext> context;
     };
