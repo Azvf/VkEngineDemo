@@ -6,7 +6,7 @@
 
 namespace Chandelier
 {
-    CommandBuffer::~CommandBuffer() { Free(); }
+    CommandBuffer::~CommandBuffer() { UnInit(); }
 
     void
     CommandBuffer::Initialize(std::shared_ptr<VKContext> context, VkCommandPool pool, VkCommandBuffer buffer)
@@ -20,7 +20,7 @@ namespace Chandelier
         m_state.stage  = Stage::Initial;
     }
 
-    void CommandBuffer::Free()
+    void CommandBuffer::UnInit()
     {
         if (m_buffer != VK_NULL_HANDLE)
         {

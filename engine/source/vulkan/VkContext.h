@@ -16,7 +16,6 @@ namespace Chandelier
     class Texture;
     class Buffer;
     class Shader;
-    class CommandBuffers;
 
     struct QueueFamilyIndices
     {
@@ -37,10 +36,10 @@ namespace Chandelier
     class VKContext : public std::enable_shared_from_this<VKContext>
     {
     public:
-        explicit VKContext(std::shared_ptr<WindowSystem> window_system);
+        VKContext() = default;
         virtual ~VKContext();
 
-        void Initialize();
+        void Initialize(std::shared_ptr<WindowSystem> window_system);
         void UnInit();
 
         VkInstance                getInstance() const;
@@ -53,9 +52,9 @@ namespace Chandelier
         uint32_t                  getGraphicsQueueFamilyIndex() const;
         VkQueryPool               getQueryPool() const;
 
-        CommandBuffers&  GetCommandBuffers();
-        DescriptorPools& GetDescriptorPools();
-        SwapChain&       GetSwapchain();
+        CommandBufferManager& GetCommandManager();
+        DescriptorPools&      GetDescriptorPools();
+        SwapChain&            GetSwapchain();
 
     public:
         void TransiteTextureLayout(Texture* texture, VkImageLayout new_layout);
@@ -74,8 +73,6 @@ namespace Chandelier
 
         Sampler& GetSampler(const GPUSamplerState& sampler_state);
 
-        void SwapBuffer();
-
         void TransferRenderPassResultToSwapchain(const RenderPass* render_pass);
 
     private:
@@ -90,8 +87,6 @@ namespace Chandelier
         VkFormat FindDepthFormat();
 
     private:
-        std::shared_ptr<WindowSystem> m_window_system;
-
         VkInstance                 m_instance;
         VkDebugUtilsMessengerEXT   m_debugUtilsMessenger;
         VkPhysicalDevice           m_physicalDevice;
@@ -109,10 +104,10 @@ namespace Chandelier
 
         VkQueryPool m_queryPool;
 
-        CommandBuffers  m_command_buffers;
-        SwapChain       m_swapchain;
-        DescriptorPools m_desc_pools;
-        SamplerManager  m_sampler_manager;
+        CommandBufferManager  m_command_manager;
+        SwapChain             m_swapchain;
+        DescriptorPools       m_desc_pools;
+        SamplerManager        m_sampler_manager;
 
         std::atomic_uint64_t m_frame_index = {};
     };

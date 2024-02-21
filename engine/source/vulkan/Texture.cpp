@@ -72,7 +72,7 @@ namespace Chandelier
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount     = m_layers;
 
-        m_context->GetCommandBuffers().IssuePipelineBarrier(
+        m_context->GetCommandManager().IssuePipelineBarrier(
             src_stage, dst_stage, std::vector<VkImageMemoryBarrier> {barrier});
     }
 
@@ -87,6 +87,17 @@ namespace Chandelier
 
         EnsureLayout(m_layout, requested_layout, src_stage, src_access, dst_stage, dst_access);
 
+        m_layout = requested_layout;
+    }
+
+    void Texture::TransferLayout(VkImageLayout        current_layout,
+                                 VkImageLayout        requested_layout,
+                                 VkPipelineStageFlags src_stage,
+                                 VkAccessFlags        src_access,
+                                 VkPipelineStageFlags dst_stage,
+                                 VkAccessFlags        dst_access)
+    {
+        EnsureLayout(current_layout, requested_layout, src_stage, src_access, dst_stage, dst_access);
         m_layout = requested_layout;
     }
 
@@ -220,7 +231,7 @@ namespace Chandelier
 
         m_context->CopyBufferToTexture(staging_buffer.get(), this);
 
-        m_context->GetCommandBuffers().Submit();
+        m_context->GetCommandManager().Submit();
     }
 
     VkImageView Texture::getView()

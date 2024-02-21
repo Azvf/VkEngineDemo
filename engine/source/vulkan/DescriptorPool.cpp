@@ -56,6 +56,8 @@ namespace Chandelier
         return std::make_shared<Descriptor>(m_context.get(), pool, vk_descriptor_set);
     }
 
+    VkDescriptorPool DescriptorPools::Handle() { return GetActivatedPool(); }
+
     void DescriptorPools::Reset() { m_active_pool_index = 0; }
 
     VkDescriptorPool DescriptorPools::GetActivatedPool() { return m_pools[m_active_pool_index]; }

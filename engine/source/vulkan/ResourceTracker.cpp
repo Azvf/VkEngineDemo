@@ -6,8 +6,8 @@ namespace Chandelier
 {
     bool SubmissionTracker::Changed(VKContext* context)
     {
-        auto& command_buffers = context->GetCommandBuffers();
-        auto& current_id      = command_buffers.GetSubmissionId();
+        auto& command_manager = context->GetCommandManager();
+        auto& current_id      = command_manager.GetSubmissionId();
         if (m_last_subid != current_id)
         {
             m_last_subid = current_id;

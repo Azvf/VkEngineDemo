@@ -48,6 +48,8 @@ namespace Chandelier
         void Initialize();
         void UnInit();
 
+        void* Handle() { return m_handle; }
+
         VkSurfaceKHR CreateSurface(std::shared_ptr<VKContext> context);
         Vector2i     GetWindowSize();
         Vector2i     GetFramebufferSize();

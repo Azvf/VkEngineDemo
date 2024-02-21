@@ -71,12 +71,13 @@ namespace Chandelier
 
         bool Valid();
         void Initialize(std::shared_ptr<VKContext> context, VkCommandPool pool, VkCommandBuffer buffer);
-        void Free();
+        void UnInit();
+
         void BeginRecording();
         void EndRecording();
         void CommandsSubmitted();
 
-        VkCommandBuffer GetCommandBuffer() const { return m_buffer; }
+        VkCommandBuffer Handle() const { return m_buffer; }
 
         bool HasRecordedCommands() const { return m_state.recorded_command_counts != 0; }
 

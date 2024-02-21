@@ -62,7 +62,8 @@ namespace Chandelier
     void WindowSystem::WindowResizeCallback(GLFWwindow* window_handle, int width, int height)
     {
         auto window_system = reinterpret_cast<WindowSystem*>(glfwGetWindowUserPointer(window_handle));
-        // todo: impl
+        window_system->m_window_size.x = width;
+        window_system->m_window_size.y = height;
     }
 
 } // namespace Chandelier

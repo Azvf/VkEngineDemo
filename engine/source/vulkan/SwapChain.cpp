@@ -5,6 +5,7 @@
 
 #include "runtime/core/base/exception.h"
 
+#include "UI/window_system.h"
 #include "Texture.h"
 #include "VKContext.h"
 #include "TimelineSemaphore.h"
@@ -12,30 +13,30 @@
 
 namespace Chandelier
 {
-    SwapChain::~SwapChain() { destroy(); }
+    SwapChain::~SwapChain() { Destroy(); }
 
-    void SwapChain::Initialize(std::shared_ptr<VKContext> context, uint32_t width, uint32_t height)
+    void SwapChain::Initialize(std::shared_ptr<VKContext> context, std::shared_ptr<WindowSystem> window_system)
     {
         m_context = context;
-
-        createSwapChain(width, height);
-        
+        m_window_system = window_system;
+        CreateSwapChain();
     }
 
-    void SwapChain::UnInit() { destroy(); }
+    void SwapChain::UnInit() { Destroy(); }
 
-    void SwapChain::createSwapChain(uint32_t width, uint32_t height)
+    void SwapChain::CreateSwapChain()
     {
+        Vector2i size = m_window_system->GetFramebufferSize();
+
         const auto& phy_device = m_context->getPhysicalDevice();
         const auto& device     = m_context->getDevice();
         const auto& surface    = m_context->getSurface();
 
-        // create SwapChain
         SwapChainSupportDetails swapChainSupport = m_context->QuerySwapChainSupport(m_context->getPhysicalDevice());
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         VkPresentModeKHR   presentMode   = chooseSwapPresentMode(swapChainSupport.presentModes);
-        VkExtent2D         extent = chooseSwapExtent(swapChainSupport.capabilities, width, height);
+        VkExtent2D         extent        = chooseSwapExtent(swapChainSupport.capabilities, size.x, size.y);
 
         uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
         if (swapChainSupport.capabilities.maxImageCount > 0 &&
@@ -77,11 +78,11 @@ namespace Chandelier
 
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-        VULKAN_API_CALL(vkCreateSwapchainKHR(device, &createInfo, nullptr, &m_swapChain));
+        VULKAN_API_CALL(vkCreateSwapchainKHR(device, &createInfo, nullptr, &m_handle));
 
-        VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_swapChain, &imageCount, nullptr));
+        VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_handle, &imageCount, nullptr));
         m_swapChainImages.resize(imageCount);
-        VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_swapChain, &imageCount, m_swapChainImages.data()));
+        VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_handle, &imageCount, m_swapChainImages.data()));
 
         // m_semaphore = std::make_unique<TimelineSemaphore>();
         // m_semaphore->Init(m_context);
@@ -91,32 +92,9 @@ namespace Chandelier
 
         VULKAN_API_CALL(vkCreateFence(m_context->getDevice(), &fence_info, nullptr, &m_fence));
 
-        // /* Change image layout from VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR. */
-        // std::vector<VkImageMemoryBarrier> barriers;
-        // barriers.resize(imageCount);
-        // 
-        // for (int i = 0; i < imageCount; i++)
-        // {
-        //     VkImageMemoryBarrier& barrier = barriers[i];
-        //     barrier                       = {};
-        // 
-        //     barrier.sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        //     barrier.oldLayout                   = VK_IMAGE_LAYOUT_UNDEFINED;
-        //     barrier.newLayout                   = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        //     barrier.image                       = m_swapChainImages[i];
-        //     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        //     barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-        //     barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-        // }
-        // 
-        // auto& command_buffers = m_context->GetCommandBuffers();
-        // command_buffers.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, barriers);
-        // command_buffers.Submit();
-
         m_swapChainImageFormat = surfaceFormat.format;
         m_swapChainExtent      = extent;
 
-        // create image view
         m_swapChainImageViews.resize(m_swapChainImages.size());
         for (size_t i = 0; i < m_swapChainImages.size(); i++)
         {
@@ -139,18 +117,17 @@ namespace Chandelier
 
             VULKAN_API_CALL(vkCreateImageView(device, &createInfo, nullptr, &m_swapChainImageViews[i]));
         }
-
     }
 
-    void SwapChain::recreate(uint32_t width, uint32_t height)
+    void SwapChain::Recreate()
     {
         VULKAN_API_CALL(vkDeviceWaitIdle(m_context->getDevice()));
-        destroy();
+        Destroy();
 
-        createSwapChain(width, height);
+        CreateSwapChain();
     }
 
-    void SwapChain::destroy()
+    void SwapChain::Destroy()
     {
         const auto& device = m_context->getDevice();
 
@@ -164,15 +141,15 @@ namespace Chandelier
             vkDestroyImageView(device, m_swapChainImageViews[i], nullptr);
         }
 
-        vkDestroySwapchainKHR(device, m_swapChain, nullptr);
+        vkDestroySwapchainKHR(device, m_handle, nullptr);
     }
 
-    void SwapChain::AcquireImage() {
+    void SwapChain::AcquireImage(bool& resized) {
         const auto& device = m_context->getDevice();
 
         // todo: optimize performance
         VkResult result = vkAcquireNextImageKHR(
-            device, m_swapChain, UINT64_MAX, VK_NULL_HANDLE, m_fence, &m_render_image_index);
+            device, m_handle, UINT64_MAX, VK_NULL_HANDLE, m_fence, &m_render_image_index);
         // m_semaphore->Wait(m_semaphore->GetValue());
         // m_semaphore->IncreaseValue();
         VULKAN_API_CALL(vkWaitForFences(device, 1, &m_fence, VK_TRUE, UINT64_MAX));
@@ -181,25 +158,31 @@ namespace Chandelier
         if (result == VK_SUCCESS)
         {
             // do nothing
+            resized = false;
         }
         else if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            assert(0);
+            Recreate();
+            resized = true;
             return;
         }
         else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         {
-            assert(0);
-            throw std::runtime_error("failed to acquire swap chain image!");
+            Recreate();
+            resized = true;
+            return;
         }
         else
         {
             assert(0);
+            resized = false;
             throw std::runtime_error("swapchain error!");
         }
     }
 
-    void SwapChain::SwapBuffer() {
+    void SwapChain::SwapBuffer(bool& resized) {
+        static size_t swap_count = 0;
+
         VkPresentInfoKHR present_info = {};
         present_info.sType            = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
@@ -208,7 +191,7 @@ namespace Chandelier
         present_info.pWaitSemaphores    = nullptr;
 
         present_info.swapchainCount = 1;
-        present_info.pSwapchains    = &m_swapChain;
+        present_info.pSwapchains    = &m_handle;
         present_info.pImageIndices  = &m_render_image_index;
         present_info.pResults       = nullptr;
 
@@ -216,16 +199,19 @@ namespace Chandelier
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR )
         {
-            assert(0);
+            Recreate();
+            resized = true;
             return;
         }
         else if (result != VK_SUCCESS)
         {
             assert(0);
+            resized = false;
             throw std::runtime_error("failed to present swap chain image!");
         }
 
         m_context->IncFrameIndex();
+        swap_count++;
     }
 
     void SwapChain::TransferSwapchainImage(size_t index, VkImageLayout requested_layout)
@@ -243,12 +229,12 @@ namespace Chandelier
 
         barriers.push_back(barrier);
 
-        auto& command_buffers = m_context->GetCommandBuffers();
-        command_buffers.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, barriers);
-        // command_buffers.Submit();
+        auto& command_manager = m_context->GetCommandManager();
+        command_manager.PipelineBarrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, barriers);
+        // command_manager.Submit();
     }
 
-    VkFormat SwapChain::findSupportedFormat(const std::vector<VkFormat>& candidates,
+    VkFormat SwapChain::FindSupportedFormat(const std::vector<VkFormat>& candidates,
                                             VkImageTiling                tiling,
                                             VkFormatFeatureFlags         features)
     {
@@ -272,9 +258,9 @@ namespace Chandelier
         throw std::runtime_error("failed to find supported format!");
     }
 
-    VkFormat SwapChain::findDepthFormat()
+    VkFormat SwapChain::FindDepthFormat()
     {
-        return findSupportedFormat(
+        return FindSupportedFormat(
             {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
             VK_IMAGE_TILING_OPTIMAL,
             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
@@ -284,7 +270,7 @@ namespace Chandelier
 
     VkFormat SwapChain::getImageFormat() const { return m_swapChainImageFormat; }
 
-    SwapChain::operator VkSwapchainKHR() const { return m_swapChain; }
+    SwapChain::operator VkSwapchainKHR() const { return m_handle; }
 
     VkImage SwapChain::getImage(size_t index) const { return m_swapChainImages[index]; }
 
@@ -292,6 +278,6 @@ namespace Chandelier
 
     size_t SwapChain::getImageCount() const { return m_swapChainImageViews.size(); }
 
-    VkSwapchainKHR SwapChain::getSwapchain() const { return m_swapChain; }
+    VkSwapchainKHR SwapChain::getSwapchain() const { return m_handle; }
 
 } // namespace Chandelier

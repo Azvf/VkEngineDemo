@@ -35,6 +35,8 @@ namespace Chandelier
 
         std::shared_ptr<Descriptor> AllocDescriptor(const VkDescriptorSetLayout& descriptor_set_layout);
         
+        VkDescriptorPool Handle();
+
         /**
          * @brief: Reset the pools to start looking for free space from the first descriptor pool.
          */

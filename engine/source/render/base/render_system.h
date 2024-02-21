@@ -31,5 +31,7 @@ namespace Chandelier
         // std::shared_ptr<RenderScene>    m_scene;
         std::shared_ptr<MainRenderPass> m_main_pass;
         std::shared_ptr<UIPass>         m_ui_pass;
+
+        bool m_resized = false;
     };
 } // namespace Chandelier

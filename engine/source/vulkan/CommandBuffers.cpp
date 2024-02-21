@@ -2,6 +2,10 @@
 
 #include <cassert>
 
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_vulkan.h"
+
 #include "runtime/core/base/exception.h"
 
 #include "VkContext.h"
@@ -11,11 +15,11 @@
 
 namespace Chandelier
 {
-    CommandBuffers::~CommandBuffers() { Free(); }
+    CommandBufferManager::~CommandBufferManager() { UnInit(); }
 
-    bool CommandBuffers::Valid() { return m_valid; }
+    bool CommandBufferManager::Valid() { return m_valid; }
 
-    void CommandBuffers::Initialize(std::shared_ptr<VKContext> context)
+    void CommandBufferManager::Initialize(std::shared_ptr<VKContext> context)
     {
         if (m_valid)
             return;
@@ -48,10 +52,10 @@ namespace Chandelier
         m_valid = true;
     }
 
-    void CommandBuffers::Free()
+    void CommandBufferManager::UnInit()
     {
-        GetCommandBuffer(DataTransferCompute).Free();
-        GetCommandBuffer(Graphics).Free();
+        GetCommandBuffer(DataTransferCompute).UnInit();
+        GetCommandBuffer(Graphics).UnInit();
 
         const auto& device = m_context->getDevice();
 
@@ -62,7 +66,7 @@ namespace Chandelier
         m_command_pool = VK_NULL_HANDLE;
     }
 
-    void CommandBuffers::InitCommandBuffer(CommandBuffer&  command_buffer,
+    void CommandBufferManager::InitCommandBuffer(CommandBuffer&  command_buffer,
                                            VkCommandPool   pool,
                                            VkCommandBuffer vk_command_buffer)
     {
@@ -70,12 +74,12 @@ namespace Chandelier
         command_buffer.BeginRecording();
     }
 
-    void CommandBuffers::IssuePipelineBarrier(const VkPipelineStageFlags        src_stages,
+    void CommandBufferManager::IssuePipelineBarrier(const VkPipelineStageFlags        src_stages,
                                               const VkPipelineStageFlags        dst_stages,
                                               std::vector<VkImageMemoryBarrier> image_memory_barriers)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdPipelineBarrier(command_buffer.GetCommandBuffer(),
+        vkCmdPipelineBarrier(command_buffer.Handle(),
                              src_stages,
                              dst_stages,
                              VK_DEPENDENCY_BY_REGION_BIT,
@@ -88,13 +92,13 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::ClearColorAttachment(VkImage                              vk_image,
+    void CommandBufferManager::ClearColorAttachment(VkImage                              vk_image,
                                               VkImageLayout                        vk_image_layout,
                                               const VkClearColorValue&             vk_clear_color,
                                               std::vector<VkImageSubresourceRange> ranges)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdClearColorImage(command_buffer.GetCommandBuffer(),
+        vkCmdClearColorImage(command_buffer.Handle(),
                              vk_image,
                              vk_image_layout,
                              &vk_clear_color,
@@ -103,13 +107,13 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::ClearDepthStencil(VkImage                              vk_image,
+    void CommandBufferManager::ClearDepthStencil(VkImage                              vk_image,
                                            VkImageLayout                        vk_image_layout,
                                            const VkClearDepthStencilValue&      vk_clear_depth_stencil,
                                            std::vector<VkImageSubresourceRange> ranges)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdClearDepthStencilImage(command_buffer.GetCommandBuffer(),
+        vkCmdClearDepthStencilImage(command_buffer.Handle(),
                                     vk_image,
                                     vk_image_layout,
                                     &vk_clear_depth_stencil,
@@ -118,7 +122,7 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::SubmitCommandBuffers(const std::vector<CommandBuffer*>& command_buffers)
+    void CommandBufferManager::SubmitCommandBuffers(const std::vector<CommandBuffer*>& command_buffers)
     {
         VkSemaphore              timeline_handle = m_semaphore.GetHandle();
         TimelineSemaphore::Value wait_value      = m_semaphore.GetValue();
@@ -130,7 +134,7 @@ namespace Chandelier
         for (CommandBuffer* command_buffer : command_buffers)
         {
             command_buffer->EndRecording();
-            submitted_buffers[num_command_buffers++] = command_buffer->GetCommandBuffer();
+            submitted_buffers[num_command_buffers++] = command_buffer->Handle();
         }
 
         VkTimelineSemaphoreSubmitInfo timeline_info = {};
@@ -164,7 +168,7 @@ namespace Chandelier
         }
     }
 
-    void CommandBuffers::EnsureNoDrawCommands()
+    void CommandBufferManager::EnsureNoDrawCommands()
     {
         if (GetCommandBuffer(Graphics).HasRecordedCommands())
         {
@@ -172,7 +176,8 @@ namespace Chandelier
         }
     }
 
-    void CommandBuffers::BeginRenderPass(Framebuffer& framebuffer) { 
+    void CommandBufferManager::BeginRenderPass(Framebuffer& framebuffer)
+    { 
         m_active_framebuffer = &framebuffer;
         // EnsureActiveFramebuffer();
 
@@ -181,20 +186,22 @@ namespace Chandelier
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType                 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         render_pass_info.renderPass            = m_active_framebuffer->render_pass;
-        render_pass_info.framebuffer           = m_active_framebuffer->framebuffer;
+        render_pass_info.framebuffer           = m_active_framebuffer->handle;
         render_pass_info.renderArea            = m_active_framebuffer->render_area;
+        
+        std::array<VkClearValue, Attachment_Max_Count> clear_value = {};
+        clear_value[Color_Attachment].color               = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clear_value[DepthStencil_Attachment].depthStencil = {1.0f, 0};
+        clear_value[UI_Attachment].color                  = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
-        std::array<VkClearValue, 2> clear_value {};
-        clear_value[0].color        = {{1.0f, 0.0f, 0.0f, 1.0f}};
-        clear_value[1].depthStencil = {1.0f, 0};
-        render_pass_info.clearValueCount      = clear_value.size();
-        render_pass_info.pClearValues         = clear_value.data();
+        render_pass_info.clearValueCount = clear_value.size();
+        render_pass_info.pClearValues    = clear_value.data();
 
         auto& graphics_command_buffer = GetCommandBuffer(Graphics);
-        vkCmdBeginRenderPass(graphics_command_buffer.GetCommandBuffer(), &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(graphics_command_buffer.Handle(), &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
     }
 
-    void CommandBuffers::EndRenderPass(Framebuffer& framebuffer) 
+    void CommandBufferManager::EndRenderPass(Framebuffer& framebuffer) 
     { 
         // EnsureNoActiveFramebuffer();
 
@@ -202,19 +209,19 @@ namespace Chandelier
         if (m_active_framebuffer)
         {
             auto& graphics_command_buffer = GetCommandBuffer(Graphics);
-            vkCmdEndRenderPass(graphics_command_buffer.GetCommandBuffer());
+            vkCmdEndRenderPass(graphics_command_buffer.Handle());
             graphics_command_buffer.CommandRecorded();
             m_active_framebuffer = nullptr;
         }
     }
 
-    void CommandBuffers::Wait()
+    void CommandBufferManager::Wait()
     {
         m_semaphore.Wait(m_last_signal_value);
         m_subid.next();
     }
 
-    void CommandBuffers::Submit()
+    void CommandBufferManager::Submit()
     {
         const auto& device                = m_context->getDevice();
         auto&       data_transfer_compute = GetCommandBuffer(DataTransferCompute);
@@ -249,10 +256,10 @@ namespace Chandelier
         }
     }
 
-    void CommandBuffers::Copy(Buffer* src_buffer, Texture* dst_texture, const std::vector<VkBufferImageCopy>& regions)
+    void CommandBufferManager::Copy(Buffer* src_buffer, Texture* dst_texture, const std::vector<VkBufferImageCopy>& regions)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdCopyBufferToImage(command_buffer.GetCommandBuffer(),
+        vkCmdCopyBufferToImage(command_buffer.Handle(),
                                src_buffer->getBuffer(),
                                dst_texture->getImage(),
                                dst_texture->getLayout(),
@@ -261,10 +268,10 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::Copy(Buffer* src_buffer, Buffer* dst_buffer, const std::vector<VkBufferCopy>& regions)
+    void CommandBufferManager::Copy(Buffer* src_buffer, Buffer* dst_buffer, const std::vector<VkBufferCopy>& regions)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdCopyBuffer(command_buffer.GetCommandBuffer(),
+        vkCmdCopyBuffer(command_buffer.Handle(),
                         src_buffer->getBuffer(),
                         dst_buffer->getBuffer(),
                         regions.size(),
@@ -272,7 +279,7 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::Blit(Texture* src_tex, Texture* dst_tex, const std::vector<VkImageBlit>& regions)
+    void CommandBufferManager::Blit(Texture* src_tex, Texture* dst_tex, const std::vector<VkImageBlit>& regions)
     {
         Blit(src_tex->getImage(),
                   src_tex->getLayout(),
@@ -281,14 +288,14 @@ namespace Chandelier
                   regions);
     }
 
-    void CommandBuffers::Blit(VkImage                         src_image,
+    void CommandBufferManager::Blit(VkImage                         src_image,
                               VkImageLayout                   src_layout,
                               VkImage                         dst_image,
                               VkImageLayout                   dst_layout,
                               const std::vector<VkImageBlit>& regions)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdBlitImage(command_buffer.GetCommandBuffer(),
+        vkCmdBlitImage(command_buffer.Handle(),
                        src_image,
                        src_layout,
                        dst_image,
@@ -299,7 +306,7 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::Bind(VkBufferUsageFlags        usage,
+    void CommandBufferManager::Bind(VkBufferUsageFlags        usage,
                               std::vector<VkBuffer>     buffers,
                               std::vector<VkDeviceSize> offsets,
                               uint32_t                  binding_point)
@@ -310,13 +317,13 @@ namespace Chandelier
         if (usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         {
             auto& command_buffer = GetCommandBuffer(Graphics);
-            vkCmdBindVertexBuffers(command_buffer.GetCommandBuffer(), binding_point, buffers.size(), buffers.data(), offsets.data());
+            vkCmdBindVertexBuffers(command_buffer.Handle(), binding_point, buffers.size(), buffers.data(), offsets.data());
         }
         else if (usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         {
             assert(buffers.size() == 1);
             auto& command_buffer = GetCommandBuffer(Graphics);
-            vkCmdBindIndexBuffer(command_buffer.GetCommandBuffer(), buffers.front(), offsets.front(), VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(command_buffer.Handle(), buffers.front(), offsets.front(), VK_INDEX_TYPE_UINT32);
         }
         else
         {
@@ -324,7 +331,7 @@ namespace Chandelier
         }
     }
 
-    void CommandBuffers::BindDescriptorSet(const VkDescriptorSet  descriptor_set,
+    void CommandBufferManager::BindDescriptorSet(const VkDescriptorSet  descriptor_set,
                                            const VkPipelineLayout pipeline_layout,
                                            VkPipelineBindPoint    pipeline_bind_point)
     {
@@ -341,11 +348,11 @@ namespace Chandelier
 
         auto& command_buffer = GetCommandBuffer(command_type);
         vkCmdBindDescriptorSets(
-            command_buffer.GetCommandBuffer(), pipeline_bind_point, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
+            command_buffer.Handle(), pipeline_bind_point, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::BindPipeline(const VkPipeline& pipeline, VkPipelineBindPoint bind_point) {
+    void CommandBufferManager::BindPipeline(const VkPipeline& pipeline, VkPipelineBindPoint bind_point) {
         Type command_type;
         if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE)
         {
@@ -362,16 +369,16 @@ namespace Chandelier
         }
 
         auto& command_buffer = GetCommandBuffer(command_type);
-        vkCmdBindPipeline(command_buffer.GetCommandBuffer(), bind_point, pipeline);
+        vkCmdBindPipeline(command_buffer.Handle(), bind_point, pipeline);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::PipelineBarrier(const VkPipelineStageFlags        src_stage,
+    void CommandBufferManager::PipelineBarrier(const VkPipelineStageFlags        src_stage,
                                          const VkPipelineStageFlags        dst_stage,
                                          std::vector<VkImageMemoryBarrier> barriers)
     {
         auto& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdPipelineBarrier(command_buffer.GetCommandBuffer(),
+        vkCmdPipelineBarrier(command_buffer.Handle(),
                              src_stage,
                              dst_stage,
                              VK_DEPENDENCY_BY_REGION_BIT,
@@ -384,56 +391,63 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::Dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
+    void CommandBufferManager::Dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
     {
         EnsureNoDrawCommands();
 
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdDispatch(command_buffer.GetCommandBuffer(), groups_x_len, groups_y_len, groups_z_len);
+        vkCmdDispatch(command_buffer.Handle(), groups_x_len, groups_y_len, groups_z_len);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::Dispatch(Buffer* storage_buffer)
+    void CommandBufferManager::Dispatch(Buffer* storage_buffer)
     {
         EnsureNoDrawCommands();
 
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
-        vkCmdDispatchIndirect(command_buffer.GetCommandBuffer(), storage_buffer->getBuffer(), 0);
+        vkCmdDispatchIndirect(command_buffer.Handle(), storage_buffer->getBuffer(), 0);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::SetViewport(VkViewport viewport)
+    void CommandBufferManager::SetViewport(VkViewport viewport)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(Graphics);
-        vkCmdSetViewport(command_buffer.GetCommandBuffer(), 0, 1, &viewport);
+        vkCmdSetViewport(command_buffer.Handle(), 0, 1, &viewport);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::SetScissor(VkRect2D scissor)
+    void CommandBufferManager::SetScissor(VkRect2D scissor)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(Graphics);
-        vkCmdSetScissor(command_buffer.GetCommandBuffer(), 0, 1, &scissor);
+        vkCmdSetScissor(command_buffer.Handle(), 0, 1, &scissor);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::Draw(Mesh* mesh)
+    void CommandBufferManager::Draw(Mesh* mesh)
     {
         // EnsureActiveFramebuffer();
 
         CommandBuffer& command_buffer = GetCommandBuffer(Graphics);
-        vkCmdDraw(command_buffer.GetCommandBuffer(), mesh->getVertexCount(), mesh->getIndexCount(), 0, 0);
+        vkCmdDraw(command_buffer.Handle(), mesh->getVertexCount(), mesh->getIndexCount(), 0, 0);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::DrawIndexed(Mesh* mesh) {
+    void CommandBufferManager::DrawIndexed(Mesh* mesh) {
         // EnsureActiveFramebuffer();
 
         CommandBuffer& command_buffer = GetCommandBuffer(Graphics);
-        vkCmdDrawIndexed(command_buffer.GetCommandBuffer(), mesh->getIndexCount(), 1, 0, 0, 0);
+        vkCmdDrawIndexed(command_buffer.Handle(), mesh->getIndexCount(), 1, 0, 0, 0);
         command_buffer.CommandRecorded();
     }
 
-    void CommandBuffers::ActivateFramebuffer(Framebuffer& framebuffer) { 
+    void CommandBufferManager::NextSubpass()
+    {
+        CommandBuffer& command_buffer = GetCommandBuffer(Graphics);
+        vkCmdNextSubpass(command_buffer.Handle(), VK_SUBPASS_CONTENTS_INLINE);
+        command_buffer.CommandRecorded();
+    }
+
+    void CommandBufferManager::ActivateFramebuffer(Framebuffer& framebuffer) { 
         // if (m_active_framebuffer)
         // {
         //     EndRenderPass(*m_active_framebuffer);
@@ -445,8 +459,13 @@ namespace Chandelier
         // BeginRenderPass(framebuffer);
     }
 
-    CommandBuffer& CommandBuffers::GetCommandBuffer(Type type) { return m_buffers[type]; }
+    CommandBuffer& CommandBufferManager::GetCommandBuffer(Type type) { return m_buffers[type]; }
 
-    SubmissionID& CommandBuffers::GetSubmissionId() { return m_subid; }
+    SubmissionID& CommandBufferManager::GetSubmissionId() { return m_subid; }
+
+    void CommandBufferManager::RenderImGui() {
+        ImGui::Render();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), GetCommandBuffer(Graphics).Handle());
+    }
 
 } // namespace Chandelier

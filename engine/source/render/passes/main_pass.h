@@ -25,7 +25,6 @@ namespace Chandelier
     {
         virtual ~MainRenderPassInitInfo() = default;
         AntiAliasing aa;
-        uint32_t     width, height;
     };
 
     class MainRenderPass : public RenderPass
@@ -36,14 +35,19 @@ namespace Chandelier
 
     public:
         virtual void Initialize(std::shared_ptr<BaseRenderPassInitInfo> info) override;
-        void         UnInit();
+        virtual void UnInit() override;
 
-        void Resize(size_t width, size_t height);
-        void UpdateUniformBuffer(const MainPassUniformBuffer& uniform_buffer);
+        virtual const VkRenderPass* GetRenderPass() override;
 
         virtual void PreDrawSetup() override;
         virtual void Draw() override;
         virtual void PostDrawCallback() override;
+
+        void Resize();
+        
+        void UpdateUniformBuffer(const MainPassUniformBuffer& uniform_buffer);
+
+        void ForwardDraw(std::vector<std::shared_ptr<RenderPass>> subpasses);
 
     private:
         void SetupUniformBuffer();
@@ -59,9 +63,8 @@ namespace Chandelier
         void SetupPipeline();
         void ResetPipeline();
 
-        void SetupSwapchainFramebuffer();
-        // void UpdateSwapchainFramebuffer();
-        void ResetSwapchainFramebuffer();
+        void SetupFramebuffers();
+        void ResetFramebuffers();
 
     private:
         std::shared_ptr<MainRenderPassInitInfo> m_pass_info;
@@ -78,16 +81,10 @@ namespace Chandelier
         std::vector<std::shared_ptr<Texture>> m_textures;
         std::vector<std::shared_ptr<Mesh>>    m_meshes;
         
-        //VkDescriptorSetLayout   m_layout;
-        // std::array<std::shared_ptr<DescriptorTracker>, Layout_Type_Count> m_desc_array;
-        
-        std::shared_ptr<DescriptorTracker> m_desc_tracker;
-        
         std::shared_ptr<Buffer> m_ubo;
+        std::shared_ptr<DescriptorTracker> m_desc_tracker;
 
-        VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
-        VkPipeline       m_pipeline        = VK_NULL_HANDLE;
-        VkRenderPass     m_render_pass     = VK_NULL_HANDLE;
+        std::vector<VkFramebuffer> m_swapchain_framebuffers;
     };
 
 } // namespace Chandelier

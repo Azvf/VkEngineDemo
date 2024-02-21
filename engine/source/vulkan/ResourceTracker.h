@@ -43,7 +43,7 @@ namespace Chandelier
 
         bool operator!=(const SubmissionID& other) { return id_ != other.id_; }
 
-        friend class CommandBuffers;
+        friend class CommandBufferManager;
     };
 
     /**

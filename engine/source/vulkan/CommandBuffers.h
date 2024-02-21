@@ -15,7 +15,7 @@ namespace Chandelier
     class Buffer;
     class Mesh;
 
-    class CommandBuffers : public NonCopyable
+    class CommandBufferManager : public NonCopyable
     {
         enum Type : uint8_t
         {
@@ -25,15 +25,16 @@ namespace Chandelier
         };
 
     public:
-        CommandBuffers() = default;
-        virtual ~CommandBuffers();
+        CommandBufferManager() = default;
+        virtual ~CommandBufferManager();
 
         bool Valid();
         void Initialize(std::shared_ptr<VKContext> context);
-        void Free();
+        void UnInit();
 
-        CommandBuffer& GetCommandBuffer(Type type);
         SubmissionID&  GetSubmissionId();
+
+        void RenderImGui();
 
         void IssuePipelineBarrier(const VkPipelineStageFlags        src_stages,
                                   const VkPipelineStageFlags        dst_stages,
@@ -85,14 +86,17 @@ namespace Chandelier
         // todo: optimize interface
         void DrawIndexed(Mesh* mesh);
 
+        void NextSubpass();
+
         void BeginRenderPass(Framebuffer& framebuffer);
         void EndRenderPass(Framebuffer& framebuffer);
 
         void Submit();
         void Wait();
 
-        VkCommandPool GetCP() { return m_command_pool; }
     private:
+        CommandBuffer& GetCommandBuffer(Type type);
+
         void InitCommandBuffer(CommandBuffer& command_buffer, VkCommandPool pool, VkCommandBuffer vk_command_buffer);
         void SubmitCommandBuffers(const std::vector<CommandBuffer*>& command_buffers);
 

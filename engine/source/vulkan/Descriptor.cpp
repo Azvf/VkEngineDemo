@@ -93,8 +93,8 @@ namespace Chandelier
     void DescriptorTracker::BindDescriptorSet(const VkPipelineLayout pipeline_layout,
                                               VkPipelineBindPoint    pipeline_bind_point)
     {
-        auto& command_buffers = m_context->GetCommandBuffers();
-        command_buffers.BindDescriptorSet(GetResource()->Handle(), pipeline_layout, pipeline_bind_point);
+        auto& command_manager = m_context->GetCommandManager();
+        command_manager.BindDescriptorSet(GetResource()->Handle(), pipeline_layout, pipeline_bind_point);
     }
 
     VkDescriptorSetLayoutBinding DescriptorTracker::CreateLayoutBinding(const Binding& binding)

@@ -63,6 +63,13 @@ namespace Chandelier
                             VkPipelineStageFlags dst_stage  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                             VkAccessFlags        dst_access = VK_ACCESS_MEMORY_READ_BIT);
 
+        void TransferLayout(VkImageLayout        current_layout,
+                            VkImageLayout        requested_layout,
+                            VkPipelineStageFlags src_stage  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                            VkAccessFlags        src_access = VK_ACCESS_MEMORY_WRITE_BIT,
+                            VkPipelineStageFlags dst_stage  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                            VkAccessFlags        dst_access = VK_ACCESS_MEMORY_READ_BIT);
+
         void Sync(const uint8_t* data);
 
     private:
@@ -93,6 +100,10 @@ namespace Chandelier
         uint32_t              m_height;
         uint32_t              m_mip_levels;
         uint32_t              m_layers;
+        /**
+         * @warning: vulkan does not offer api for checking vkimage layout, thus the layout is just not accurate, 
+         * thinking about deprecating the layout member
+         */
         VkImageLayout         m_layout;
         VkImageUsageFlags     m_usage;
         VkMemoryPropertyFlags m_mem_props;

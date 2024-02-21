@@ -77,12 +77,5 @@ namespace Chandelier {
 		uint32_t m_indexCount;
 		
         std::array<std::unique_ptr<Buffer>, Mesh_Buffer_Count> m_buffers;
-	    
-        
-        VkBuffer       m_vertexBuffer;
-        VkBuffer       m_indexBuffer;
-        VkDeviceMemory m_vertexBufferMemory;
-        VkDeviceMemory m_indexBufferMemory;
-
     };
 }

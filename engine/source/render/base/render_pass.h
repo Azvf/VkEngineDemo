@@ -13,7 +13,15 @@ namespace Chandelier
     {
         Color_Attachment        = 0,
         DepthStencil_Attachment = 1,
+        UI_Attachment           = 2,
         Attachment_Max_Count
+    };
+
+    enum RenderPassSubpass : uint8_t
+    {
+        Subpass_Base_Pass   = 0,
+        Subpass_UI_Pass     = 1,
+        Subpass_Count,
     };
 
     struct RenderPassContext
@@ -25,6 +33,7 @@ namespace Chandelier
     {
         virtual ~BaseRenderPassInitInfo() = default;
         RenderPassContext render_context;
+        uint32_t          width, height;
     };
 
     class RenderPass : public RenderPassBase
@@ -32,11 +41,15 @@ namespace Chandelier
     public:
         struct RenderPipelineBase
         {
-            VkPipelineLayout layout;
-            VkPipeline       pipeline;
-        };
+            VkPipelineLayout layout      = VK_NULL_HANDLE;
+            VkPipeline       pipeline    = VK_NULL_HANDLE;
+            VkRenderPass     render_pass = VK_NULL_HANDLE;
+        } m_render_pipeline;
 
         virtual void Initialize(std::shared_ptr<BaseRenderPassInitInfo> info) = 0;
+        virtual void UnInit() = 0;
+
+        virtual const VkRenderPass* GetRenderPass() = 0;
 
         virtual void PreDrawSetup() = 0;
         virtual void Draw() = 0;
@@ -45,7 +58,6 @@ namespace Chandelier
         std::shared_ptr<GlobalRenderResource> m_global_render_resource;
 
         // std::vector<Descriptor>         m_descriptor_infos;
-        // std::vector<RenderPipelineBase> m_render_pipelines;
         std::vector<Framebuffer> m_framebuffers;
         
         RenderPassContext m_context;

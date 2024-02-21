@@ -15,31 +15,34 @@
 
 namespace Chandelier
 {
+#define MAIN_PASS_SETUP_CONTEXT \
+    auto& context         = m_pass_info->render_context.vk_context; \
+    auto& swapchain       = context->GetSwapchain(); \
+    auto& command_manager = context->GetCommandManager();
+
     MainRenderPass::~MainRenderPass() { UnInit(); }
 
-    void MainRenderPass::Resize(size_t width, size_t height)
+    void MainRenderPass::Resize()
     {
-        if (!m_pass_info)
-        {
-            assert(0);
-            return;
-        }
+        MAIN_PASS_SETUP_CONTEXT
 
-        m_pass_info->width  = width;
-        m_pass_info->height = height;
+        auto extent = swapchain.getExtent();
 
-        ResetSwapchainFramebuffer();
+        m_pass_info->width  = extent.width;
+        m_pass_info->height = extent.height;
+
+        ResetFramebuffers();
         ResetAttachments();
 
         SetupAttachments();
         SyncDescriptorSets();
-        SetupSwapchainFramebuffer();
+        SetupFramebuffers();
     }
 
     void MainRenderPass::UpdateUniformBuffer(const MainPassUniformBuffer& uniform_buffer)
     {
         auto& context         = m_pass_info->render_context.vk_context;
-        auto& command_buffers = context->GetCommandBuffers();
+        auto& command_manager = context->GetCommandManager();
 
         // todo: map and unmap everytime or keep it mapped on memory
         m_ubo->map();
@@ -53,6 +56,9 @@ namespace Chandelier
         auto& context = info->render_context.vk_context;
         m_pass_info   = std::dynamic_pointer_cast<MainRenderPassInitInfo>(info);
 
+        /**
+         * @todo: assets managed through asset manager
+         */
         m_meshes.push_back(LoadObjModel(context, "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\assets\\Boat\\Boat.obj"));
         m_textures.push_back(LoadTexture(context, "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\assets\\Boat\\texture\\bench 1_Base_color.png"));
         m_textures.push_back(LoadTexture(context, "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\assets\\Boat\\texture\\bench 1_Normal.png"));
@@ -61,12 +67,12 @@ namespace Chandelier
         SetupDescriptorSets();
         SetupAttachments();
         SetupPipeline();
-        SetupSwapchainFramebuffer();
+        SetupFramebuffers();
     }
 
     void MainRenderPass::UnInit()
     {
-        ResetSwapchainFramebuffer();
+        ResetFramebuffers();
         ResetPipeline();
         ResetAttachments();
         ResetDescriptorSets();
@@ -85,18 +91,20 @@ namespace Chandelier
                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     }
 
-    void MainRenderPass::ResetUniformBuffer() {}
+    void MainRenderPass::ResetUniformBuffer() { m_ubo = nullptr; }
 
     void MainRenderPass::SetupAttachments()
     {
         auto&    context = m_pass_info->render_context.vk_context;
         uint32_t width = m_pass_info->width, height = m_pass_info->height;
         size_t   frames_in_flight = context->GetSwapchain().getImageCount();
-        m_framebuffers.resize(frames_in_flight);
 
+        /**
+         * @todo: do we need to create all the attachments for each in fight frame?
+         */
+        m_framebuffers.resize(frames_in_flight);
         for (int i = 0; i < frames_in_flight; i++)
         {
-            m_framebuffers[i].render_area = {{0, 0}, {width, height}};
             m_framebuffers[i].attachments.resize(Attachment_Max_Count);
 
             for (auto& attachment : m_framebuffers[i].attachments)
@@ -106,6 +114,7 @@ namespace Chandelier
 
             auto& color_attachment         = m_framebuffers[i].attachments[Color_Attachment];
             auto& depth_stencil_attachment = m_framebuffers[i].attachments[DepthStencil_Attachment];
+            auto& ui_attachment            = m_framebuffers[i].attachments[UI_Attachment];
 
             color_attachment->InitTex2D(context,
                                         width,
@@ -126,6 +135,15 @@ namespace Chandelier
                                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
                                                     VK_IMAGE_USAGE_SAMPLED_BIT,
                                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            ui_attachment->InitTex2D(context,
+                                     width,
+                                     height,
+                                     1,
+                                     1,
+                                     VK_FORMAT_R16G16B16A16_SFLOAT,
+                                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         }
     }
 
@@ -157,17 +175,6 @@ namespace Chandelier
     {
         auto& context = m_pass_info->render_context.vk_context;
 
-        // m_desc_array[Global_Mesh_Layout]->Bind(
-        //     m_ubo.get(), Location(0), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-        // m_desc_array[Global_Mesh_Layout]->Sync();
-        // 
-        // auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
-        // m_desc_array[Mesh_Material_Layout]->Bind(
-        //     m_textures[0].get(), &default_sampler, Location(0), VK_SHADER_STAGE_FRAGMENT_BIT);
-        // m_desc_array[Mesh_Material_Layout]->Bind(
-        //     m_textures[1].get(), &default_sampler, Location(1), VK_SHADER_STAGE_FRAGMENT_BIT);
-        // m_desc_array[Mesh_Material_Layout]->Sync();
-    
         auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
         
         m_desc_tracker->Bind(m_ubo.get(), Location(0), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -210,37 +217,65 @@ namespace Chandelier
             attachment_descs[DepthStencil_Attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_descs[DepthStencil_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_descs[DepthStencil_Attachment].finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        }
 
+            // ui
+            attachment_descs[UI_Attachment].format         = VK_FORMAT_R16G16B16A16_SFLOAT;
+            attachment_descs[UI_Attachment].samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_descs[UI_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment_descs[UI_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_descs[UI_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_descs[UI_Attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment_descs[UI_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_descs[UI_Attachment].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        }
+        
+        std::vector<VkSubpassDescription> subpasses(Subpass_Count);
+        
         VkAttachmentReference color_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        VkAttachmentReference depth_attach_ref {DepthStencil_Attachment,
-                                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        VkAttachmentReference depth_attach_ref {DepthStencil_Attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        subpasses[Subpass_Base_Pass]                         = {};
+        subpasses[Subpass_Base_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[Subpass_Base_Pass].colorAttachmentCount    = 1;
+        subpasses[Subpass_Base_Pass].pColorAttachments       = &color_attach_ref;
+        subpasses[Subpass_Base_Pass].pDepthStencilAttachment = &depth_attach_ref;
+        /**
+         * @todo: don't know how to blend ui attachment and color attachment...just write ui pass on color attachment for now
+         */
+        VkAttachmentReference ui_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        subpasses[Subpass_UI_Pass]                         = {};
+        subpasses[Subpass_UI_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[Subpass_UI_Pass].colorAttachmentCount    = 1;
+        subpasses[Subpass_UI_Pass].pColorAttachments       = &ui_attach_ref;
 
-        std::vector<VkSubpassDescription> subpasses;
-        subpasses.resize(1);
-        subpasses[0].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[0].colorAttachmentCount    = 1;
-        subpasses[0].pColorAttachments       = &color_attach_ref;
-        subpasses[0].pDepthStencilAttachment = &depth_attach_ref;
+        std::vector<VkSubpassDependency> dependencies(1);
+        dependencies[0] = {};
+        dependencies[0].srcSubpass = Subpass_Base_Pass;
+        dependencies[0].dstSubpass = Subpass_UI_Pass;
+        dependencies[0].srcStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[0].dstStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[0].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        dependencies[0].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-        // create renderpass
-        {
-            VkRenderPassCreateInfo render_pass_info {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-            render_pass_info.attachmentCount = Attachment_Max_Count;
-            render_pass_info.pAttachments    = attachment_descs;
-            render_pass_info.subpassCount    = subpasses.size();
-            render_pass_info.pSubpasses      = subpasses.data();
-            render_pass_info.dependencyCount = 0;
-            render_pass_info.pDependencies   = nullptr;
-
-            VULKAN_API_CALL(vkCreateRenderPass(context->getDevice(), &render_pass_info, nullptr, &m_render_pass));
-        }
+        VkRenderPassCreateInfo render_pass_info {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+        render_pass_info.attachmentCount = Attachment_Max_Count;
+        render_pass_info.pAttachments    = attachment_descs;
+        render_pass_info.subpassCount    = subpasses.size();
+        render_pass_info.pSubpasses      = subpasses.data();
+        render_pass_info.dependencyCount = dependencies.size();
+        render_pass_info.pDependencies   = dependencies.data();
+        VULKAN_API_CALL(vkCreateRenderPass(context->getDevice(), &render_pass_info, nullptr, &m_render_pipeline.render_pass));
 
         for (auto& framebuffer : m_framebuffers)
         {
-            framebuffer.render_pass = m_render_pass;
+            framebuffer.render_pass = m_render_pipeline.render_pass;
         }
 
+        /**
+         * @todo: implement the global path configurer and asset manager to eliminate the abs path
+         */
         auto vert_shader = std::make_unique<Shader>();
         auto vert_code   = readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\vert.spv");
         vert_shader->Initialize(context, reinterpret_cast<const uint8_t*>(vert_code.data()), vert_code.size());
@@ -261,49 +296,23 @@ namespace Chandelier
         frag_shader_info.module = frag_shader->GetModule();
         frag_shader_info.pName  = "main";
 
-        std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {vert_shader_info, frag_shader_info};
+        std::vector<VkPipelineShaderStageCreateInfo> shader_stages = {vert_shader_info, frag_shader_info};
 
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
-        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-        // VkVertexInputBindingDescription vertex_binding_desc = {};
-        // vertex_binding_desc.binding                         = 0;
-        // vertex_binding_desc.stride                          = sizeof(Vertex);
-        // vertex_binding_desc.inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        // std::array<VkVertexInputAttributeDescription, 4> vert_attr_desc = {};
-        // vert_attr_desc[0].binding                                       = 0;
-        // vert_attr_desc[0].location                                      = 0;
-        // vert_attr_desc[0].format                                        = VK_FORMAT_R32G32B32_SFLOAT;
-        // vert_attr_desc[0].offset                                        = offsetof(Vertex, px);
-
-        // vert_attr_desc[1].binding  = 0;
-        // vert_attr_desc[1].location = 1;
-        // vert_attr_desc[1].format   = VK_FORMAT_R32G32B32_SFLOAT;
-        // vert_attr_desc[1].offset   = offsetof(Vertex, nx);
-
-        // vert_attr_desc[2].binding  = 0;
-        // vert_attr_desc[2].location = 2;
-        // vert_attr_desc[2].format   = VK_FORMAT_R32G32B32_SFLOAT;
-        // vert_attr_desc[2].offset   = offsetof(Vertex, tx);
-
-        // vert_attr_desc[3].binding  = 0;
-        // vert_attr_desc[3].location = 3;
-        // vert_attr_desc[3].format   = VK_FORMAT_R32G32_SFLOAT;
-        // vert_attr_desc[3].offset   = offsetof(Vertex, u);
+        VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
+        vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
         auto vertex_binding_desc = ShaderData::Vertex::getBindingDescription();
         auto vert_attr_desc      = ShaderData::Vertex::getAttributeDescriptions();
 
-        vertexInputInfo.vertexBindingDescriptionCount   = 1;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vert_attr_desc.size());
-        vertexInputInfo.pVertexBindingDescriptions      = &vertex_binding_desc;
-        vertexInputInfo.pVertexAttributeDescriptions    = vert_attr_desc.data();
+        vertex_input_info.vertexBindingDescriptionCount   = 1;
+        vertex_input_info.vertexAttributeDescriptionCount = static_cast<uint32_t>(vert_attr_desc.size());
+        vertex_input_info.pVertexBindingDescriptions      = &vertex_binding_desc;
+        vertex_input_info.pVertexAttributeDescriptions    = vert_attr_desc.data();
 
-        VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-        inputAssembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        inputAssembly.primitiveRestartEnable = VK_FALSE;
+        VkPipelineInputAssemblyStateCreateInfo input_assembly = {};
+        input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        input_assembly.primitiveRestartEnable = VK_FALSE;
 
         // NDC coordinates
         VkViewport viewport = {};
@@ -318,12 +327,12 @@ namespace Chandelier
         scissor.offset = {0, 0};
         scissor.extent = {1, 1};
 
-        VkPipelineViewportStateCreateInfo viewportState = {};
-        viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.pViewports    = &viewport;
-        viewportState.scissorCount  = 1;
-        viewportState.pScissors     = &scissor;
+        VkPipelineViewportStateCreateInfo viewport_state = {};
+        viewport_state.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewport_state.viewportCount = 1;
+        viewport_state.pViewports    = &viewport;
+        viewport_state.scissorCount  = 1;
+        viewport_state.pScissors     = &scissor;
 
         VkPipelineRasterizationStateCreateInfo rasterizer  = {};
         rasterizer.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -340,25 +349,22 @@ namespace Chandelier
         multisampling.sampleShadingEnable  = VK_FALSE;
         multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-        colorBlendAttachment.colorWriteMask =
+        VkPipelineColorBlendAttachmentState color_blend_attachment = {};
+        color_blend_attachment.colorWriteMask =
             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        colorBlendAttachment.blendEnable = VK_FALSE;
+        color_blend_attachment.blendEnable = VK_FALSE;
 
         VkPipelineColorBlendStateCreateInfo color_blending = {};
         color_blending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         color_blending.logicOpEnable     = VK_FALSE;
         color_blending.logicOp           = VK_LOGIC_OP_COPY;
         color_blending.attachmentCount   = 1;
-        color_blending.pAttachments      = &colorBlendAttachment;
+        color_blending.pAttachments      = &color_blend_attachment;
         color_blending.blendConstants[0] = 0.0f;
         color_blending.blendConstants[1] = 0.0f;
         color_blending.blendConstants[2] = 0.0f;
         color_blending.blendConstants[3] = 0.0f;
 
-        // std::vector<VkDescriptorSetLayout> layouts;
-        // for (auto& layout : m_desc_array)
-        //     layouts.push_back(layout->GetSetLayout());
         std::vector<VkDescriptorSetLayout> layouts{m_desc_tracker->GetSetLayout()};
         
         VkPipelineLayoutCreateInfo pipeline_layout_info = {};
@@ -367,7 +373,7 @@ namespace Chandelier
         pipeline_layout_info.pSetLayouts                = layouts.data();
 
         VULKAN_API_CALL(
-            vkCreatePipelineLayout(context->getDevice(), &pipeline_layout_info, nullptr, &m_pipeline_layout));
+            vkCreatePipelineLayout(context->getDevice(), &pipeline_layout_info, nullptr, &m_render_pipeline.layout));
 
         std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
@@ -378,17 +384,17 @@ namespace Chandelier
 
         VkGraphicsPipelineCreateInfo pipeline_info = {};
         pipeline_info.sType                        = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipeline_info.stageCount                   = shaderStages.size();
-        pipeline_info.pStages                      = shaderStages.data();
-        pipeline_info.pVertexInputState            = &vertexInputInfo;
-        pipeline_info.pInputAssemblyState          = &inputAssembly;
-        pipeline_info.pViewportState               = &viewportState;
+        pipeline_info.stageCount                   = shader_stages.size();
+        pipeline_info.pStages                      = shader_stages.data();
+        pipeline_info.pVertexInputState            = &vertex_input_info;
+        pipeline_info.pInputAssemblyState          = &input_assembly;
+        pipeline_info.pViewportState               = &viewport_state;
         pipeline_info.pRasterizationState          = &rasterizer;
         pipeline_info.pMultisampleState            = &multisampling;
         pipeline_info.pColorBlendState             = &color_blending;
         pipeline_info.pDynamicState                = &dynamic_state_create_info;
-        pipeline_info.layout                       = m_pipeline_layout;
-        pipeline_info.renderPass                   = m_render_pass;
+        pipeline_info.layout                       = m_render_pipeline.layout;
+        pipeline_info.renderPass                   = m_render_pipeline.render_pass;
         pipeline_info.subpass                      = 0;
         pipeline_info.basePipelineHandle           = VK_NULL_HANDLE;
 
@@ -401,31 +407,37 @@ namespace Chandelier
 
         pipeline_info.pDepthStencilState = &depth_stencil;
 
-        VULKAN_API_CALL(
-            vkCreateGraphicsPipelines(context->getDevice(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &m_pipeline));
+        VULKAN_API_CALL(vkCreateGraphicsPipelines(
+            context->getDevice(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &m_render_pipeline.pipeline));
     }
 
     void MainRenderPass::ResetPipeline()
     {
         auto& context = m_pass_info->render_context.vk_context;
-        vkDestroyPipeline(context->getDevice(), m_pipeline, nullptr);
-        vkDestroyPipelineLayout(context->getDevice(), m_pipeline_layout, nullptr);
+        vkDestroyPipeline(context->getDevice(), m_render_pipeline.pipeline, nullptr);
+        vkDestroyPipelineLayout(context->getDevice(), m_render_pipeline.layout, nullptr);
     }
 
-    void MainRenderPass::SetupSwapchainFramebuffer()
+    void MainRenderPass::SetupFramebuffers()
     {
-        auto& context = m_pass_info->render_context.vk_context;
+        MAIN_PASS_SETUP_CONTEXT
 
-        size_t frames_in_flight = context->GetSwapchain().getImageCount();
-        m_framebuffers.resize(frames_in_flight);
+        size_t   frames_in_flight = context->GetSwapchain().getImageCount();
+        uint32_t width = m_pass_info->width, height = m_pass_info->height;
         auto swapchain_extent = context->GetSwapchain().getExtent();
 
+        m_framebuffers.resize(frames_in_flight);
         for (size_t i = 0; i < frames_in_flight; i++)
         {
+            m_framebuffers[i].render_pass = m_render_pipeline.render_pass;
+            m_framebuffers[i].render_area = {{0, 0}, {width, height}};
+
             auto& color_attachment         = m_framebuffers[i].attachments[Color_Attachment];
             auto& depth_stencil_attachment = m_framebuffers[i].attachments[DepthStencil_Attachment];
+            auto& ui_attachment            = m_framebuffers[i].attachments[UI_Attachment];
 
-            std::vector<VkImageView> attachments = {color_attachment->getView(), depth_stencil_attachment->getView()};
+            std::vector<VkImageView> attachments = {
+                color_attachment->getView(), depth_stencil_attachment->getView(), ui_attachment->getView()};
 
             VkFramebufferCreateInfo framebuffer_create_info = {};
             framebuffer_create_info.sType                   = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -437,27 +449,26 @@ namespace Chandelier
             framebuffer_create_info.layers                  = 1;
 
             VULKAN_API_CALL(vkCreateFramebuffer(
-                context->getDevice(), &framebuffer_create_info, nullptr, &m_framebuffers[i].framebuffer));
+                context->getDevice(), &framebuffer_create_info, nullptr, &m_framebuffers[i].handle));
         }
     }
 
-    void MainRenderPass::ResetSwapchainFramebuffer()
+    void MainRenderPass::ResetFramebuffers()
     {
         auto& context = m_pass_info->render_context.vk_context;
 
-        for (auto swapchain_frambuffer : m_framebuffers)
+        for (auto frambuffer : m_framebuffers)
         {
-            vkDestroyFramebuffer(context->getDevice(), swapchain_frambuffer.framebuffer, nullptr);
-            swapchain_frambuffer.framebuffer = VK_NULL_HANDLE;
+            vkDestroyFramebuffer(context->getDevice(), frambuffer.handle, nullptr);
+            frambuffer.handle = VK_NULL_HANDLE;
         }
+
+        m_framebuffers.clear();
     }
 
     void MainRenderPass::PreDrawSetup()
     {
-        // for (auto& framebuffer : m_framebuffers)
-        // {
-        //     framebuffer.attachments[Color_Attachment]->TransferLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        // }
+
     }
 
     void MainRenderPass::PostDrawCallback()
@@ -465,27 +476,14 @@ namespace Chandelier
         auto& context            = m_pass_info->render_context.vk_context;
         auto& frame_index        = context->GetFrameIndex();
         auto& active_framebuffer = m_framebuffers[frame_index];
+        auto& color_attachment   = active_framebuffer.attachments[Color_Attachment];
 
-        active_framebuffer.attachments[Color_Attachment]->TransferLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        // color_attachment->TransferLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 
     void MainRenderPass::Draw()
     {
-        auto&    context = m_pass_info->render_context.vk_context;
-        uint32_t width = m_pass_info->width, height = m_pass_info->height;
-        auto&    frame_index        = context->GetFrameIndex();
-        auto&    active_framebuffer = m_framebuffers[frame_index];
-        
-        auto& command_buffers = context->GetCommandBuffers();
-        command_buffers.ActivateFramebuffer(active_framebuffer);
-
-        command_buffers.BeginRenderPass(active_framebuffer);
-        command_buffers.BindPipeline(m_pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
-
-        m_desc_tracker->BindDescriptorSet(m_pipeline_layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-
-        command_buffers.SetViewport(VkViewport {0.f, 0.f, (float)width, (float)height, 0.f, 1.f});
-        command_buffers.SetScissor(VkRect2D {{0, 0}, {width, height}});
+        MAIN_PASS_SETUP_CONTEXT 
 
         // todo: is it necessary to bind everytime before drawing? if not relocate it later
         for (auto& mesh : m_meshes)
@@ -493,22 +491,51 @@ namespace Chandelier
             auto                      index_buffer       = mesh->GetBuffer(Index_Buffer);
             std::vector<VkBuffer>     bind_index_buffers = {index_buffer};
             std::vector<VkDeviceSize> bind_index_offsets = {0};
-            command_buffers.Bind(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bind_index_buffers, bind_index_offsets);
+            command_manager.Bind(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bind_index_buffers, bind_index_offsets);
             
             auto                      vertex_buffer            = mesh->GetBuffer(Vertex_Buffer);
             auto                      vertex_count             = mesh->getVertexCount();
             std::vector<VkBuffer>     bind_vertex_buffers      = {vertex_buffer, vertex_buffer, vertex_buffer};
             std::vector<VkDeviceSize> bind_vertex_attr_offsets = {
                 0, vertex_count * sizeof(glm::vec3), vertex_count * sizeof(glm::vec3) * 2};
-            command_buffers.Bind(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bind_vertex_buffers, bind_vertex_attr_offsets);
+            command_manager.Bind(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bind_vertex_buffers, bind_vertex_attr_offsets);
             
-            command_buffers.DrawIndexed(mesh.get());
+            command_manager.DrawIndexed(mesh.get());
         }
-
-        command_buffers.EndRenderPass(active_framebuffer);
-        command_buffers.Submit();
-
         PostDrawCallback();
     }
+
+    void MainRenderPass::ForwardDraw(std::vector<std::shared_ptr<RenderPass>> subpasses)
+    {
+        MAIN_PASS_SETUP_CONTEXT
+        uint32_t width = m_pass_info->width, height = m_pass_info->height;
+        auto&    frame_index        = context->GetFrameIndex();
+        auto&    active_framebuffer = m_framebuffers[frame_index];
+
+        command_manager.ActivateFramebuffer(active_framebuffer);
+
+        command_manager.BeginRenderPass(active_framebuffer);
+        command_manager.BindPipeline(m_render_pipeline.pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
+        m_desc_tracker->BindDescriptorSet(m_render_pipeline.layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
+        command_manager.SetViewport(VkViewport {0.f, 0.f, (float)width, (float)height, 0.f, 1.f});
+        command_manager.SetScissor(VkRect2D {{0, 0}, {width, height}});
+
+        {
+            this->Draw();
+
+            for (auto& subpass : subpasses)
+            {
+                command_manager.NextSubpass();
+                subpass->Draw();
+            }
+        }
+
+        command_manager.EndRenderPass(active_framebuffer);
+        command_manager.Submit();
+    }
+
+    const VkRenderPass* MainRenderPass::GetRenderPass() { return &m_render_pipeline.render_pass;}
 
 } // namespace Chandelier

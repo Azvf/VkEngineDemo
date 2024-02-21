@@ -63,11 +63,10 @@ namespace Chandelier {
 
     const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
-    VKContext::VKContext(std::shared_ptr<WindowSystem> window_system) : m_window_system(window_system) {}
-
     VKContext::~VKContext() { UnInit(); }
 
-    void VKContext::Initialize() {
+    void VKContext::Initialize(std::shared_ptr<WindowSystem> window_system)
+    {
         // create VkInstance
         {
             if (enableValidationLayers && !CheckValidationLayerSupport())
@@ -122,7 +121,7 @@ namespace Chandelier {
         }
 
         // create surface
-        m_surface = m_window_system->CreateSurface(shared_from_this());
+        m_surface = window_system->CreateSurface(shared_from_this());
 
         // pick physical device
         {
@@ -222,7 +221,7 @@ namespace Chandelier {
             VkPhysicalDeviceVulkan12Features vk12_features = {};
             vk12_features.sType                            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
             vk12_features.pNext                            = nullptr;
-            vk12_features.timelineSemaphore = true;
+            vk12_features.timelineSemaphore                = true;
 
             createInfo.pNext = &vk12_features;
 
@@ -232,12 +231,11 @@ namespace Chandelier {
             vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
         }
 
-        m_command_buffers.Initialize(shared_from_this());
+        m_command_manager.Initialize(shared_from_this());
 
         m_desc_pools.Initialize(shared_from_this());
 
-        Vector2i window_size = m_window_system->GetWindowSize();
-        m_swapchain.Initialize(shared_from_this(), window_size.x, window_size.y);
+        m_swapchain.Initialize(shared_from_this(), window_system);
 
         m_sampler_manager.Initialize(shared_from_this());
     }
@@ -245,7 +243,7 @@ namespace Chandelier {
     void VKContext::UnInit()
     {
         m_swapchain.UnInit();
-        m_command_buffers.Free();
+        m_command_manager.UnInit();
         m_desc_pools.Free();
         vkDestroyDevice(m_device, nullptr);
 
@@ -261,7 +259,6 @@ namespace Chandelier {
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
     }
-
 
     VkInstance VKContext::getInstance() const
     {
@@ -310,8 +307,8 @@ namespace Chandelier {
         return m_queryPool;
     }
 
-    CommandBuffers& VKContext::GetCommandBuffers() { 
-        return m_command_buffers;
+    CommandBufferManager& VKContext::GetCommandManager() { 
+        return m_command_manager;
     }
 
     VkFormat VKContext::FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
@@ -383,7 +380,7 @@ namespace Chandelier {
             ENGINE_THROW_ERROR("image layout transfer not supported", EngineCode::General_Assert_Code);
         }
         
-        m_command_buffers.IssuePipelineBarrier(
+        m_command_manager.IssuePipelineBarrier(
             sourceStage, destinationStage, std::vector<VkImageMemoryBarrier> {barrier});
     }
 
@@ -407,7 +404,7 @@ namespace Chandelier {
         region.imageOffset = { 0, 0, 0 };
         region.imageExtent = {texture->getWidth(), texture->getHeight(), 1};
         
-        m_command_buffers.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
+        m_command_manager.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
     }
 
     void VKContext::FlushMappedBuffers(std::vector<Buffer*> mapped_buffers) {
@@ -556,8 +553,6 @@ namespace Chandelier {
          return m_sampler_manager.GetSampler(sampler_state);
      }
 
-    void VKContext::SwapBuffer() { m_swapchain.SwapBuffer(); }
-
     void VKContext::TransferRenderPassResultToSwapchain(const RenderPass* render_pass) {
         auto render_pass_attachment = render_pass->m_framebuffers[m_frame_index].attachments[Color_Attachment];
         auto extent = m_swapchain.getExtent();
@@ -580,12 +575,13 @@ namespace Chandelier {
 
         regions.push_back(blit_region);
 
-        auto render_pass_attachment_layout = render_pass_attachment->getLayout();
+        // auto render_pass_attachment_layout = render_pass_attachment->getLayout();
+        auto render_pass_attachment_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
         render_pass_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         m_swapchain.TransferSwapchainImage(m_frame_index, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        m_command_buffers.Blit(render_pass_attachment->getImage(),
+        m_command_manager.Blit(render_pass_attachment->getImage(),
                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                m_swapchain.getImage(m_frame_index),
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -594,7 +590,7 @@ namespace Chandelier {
         render_pass_attachment->TransferLayout(render_pass_attachment_layout);
         m_swapchain.TransferSwapchainImage(m_frame_index, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         
-        m_command_buffers.Submit();
+        m_command_manager.Submit();
     }
 
     std::vector<const char*> VKContext::GetRequiredExtensions()
