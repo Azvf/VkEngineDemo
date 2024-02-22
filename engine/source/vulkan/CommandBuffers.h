@@ -50,6 +50,7 @@ namespace Chandelier
                                const VkClearDepthStencilValue&      vk_clear_color,
                                std::vector<VkImageSubresourceRange> ranges);
 
+        void Copy(Texture* src_texture, Buffer* dst_buffer, const std::vector<VkBufferImageCopy>& regions);
         void Copy(Buffer* src_buffer, Texture* dst_texture, const std::vector<VkBufferImageCopy>& regions);
         void Copy(Buffer* src_buffer, Buffer* dst_buffer, const std::vector<VkBufferCopy>& regions);
 

@@ -77,7 +77,11 @@ namespace Chandelier
             // Skybox_Layout,
             Layout_Type_Count
         };
-
+        
+        /**
+         * @todo: implement asset mananger to manage
+         */
+        std::shared_ptr<Texture>              m_skybox_tex;
         std::vector<std::shared_ptr<Texture>> m_textures;
         std::vector<std::shared_ptr<Mesh>>    m_meshes;
         

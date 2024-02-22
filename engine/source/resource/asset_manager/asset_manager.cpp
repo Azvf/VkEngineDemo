@@ -82,6 +82,27 @@ namespace Chandelier
         return Mesh::load(context, vertices, indices);
     }
 
+    static VkFormat CubeMapChannelsToFormat(int desired_channels) {
+        VkFormat format;
+        switch (desired_channels)
+        {
+            case 2:
+                format = VK_FORMAT_R32G32_SFLOAT;
+                break;
+            case 4:
+                format = VK_FORMAT_R32G32B32A32_SFLOAT;
+                break;
+            default:
+                /**
+                 * @warning: three component format is not supported in some vulkan driver implementations
+                 */
+                assert(0);
+                throw std::runtime_error("unsupported channels number");
+                break;
+        }
+        return format;
+    }
+
     std::shared_ptr<Texture> LoadTexture(std::shared_ptr<VKContext> context, std::string_view path)
     {
         int texWidth, texHeight, texChannels;
@@ -121,6 +142,97 @@ namespace Chandelier
                                 0);
         
         context->GetCommandManager().Submit();
+
+        assert(pixels);
+        if (pixels)
+        {
+            free(pixels);
+        }
+        
+        return texture;
+    }
+
+    std::shared_ptr<Texture> LoadSkybox(std::shared_ptr<VKContext> context, std::string_view path, int desired_channels)
+    {
+        assert(0 && "wip");
+        auto texture = std::make_shared<Texture>();
+        return texture;
+    }
+
+    std::shared_ptr<Texture>
+    LoadSkybox(std::shared_ptr<VKContext> context, std::array<std::shared_ptr<Texture>, 6> faces, int desired_channels)
+    {
+        auto     texture = std::make_shared<Texture>();
+        VkFormat format  = CubeMapChannelsToFormat(desired_channels);
+        
+        texture->InitCubeMap(context, faces, 1, format);
+        
+        texture->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                0,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                VK_ACCESS_TRANSFER_WRITE_BIT);
+
+        std::vector<std::shared_ptr<Texture>> face_vec(faces.begin(), faces.end());
+        texture->Sync(face_vec);
+
+        texture->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                VK_ACCESS_TRANSFER_WRITE_BIT,
+                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                0);
+
+        context->GetCommandManager().Submit();
+
+        return texture;
+    }
+
+    std::shared_ptr<Texture> LoadTextureHDR(std::shared_ptr<VKContext> context, std::string_view path, int desired_channels)
+    {
+        auto texture = std::make_shared<Texture>();
+        
+        int tex_width, tex_height, tex_channels;
+        float* pixels = stbi_loadf(path.data(), &tex_width, &tex_height, &tex_channels, desired_channels);
+
+        if (!pixels)
+        {
+            assert(0);
+            return texture;
+        }
+
+        VkFormat format = CubeMapChannelsToFormat(desired_channels);
+
+        texture->InitTex2D(context,
+                           tex_width,
+                           tex_height,
+                           1,
+                           1,
+                           format,
+                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        texture->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                0,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                VK_ACCESS_TRANSFER_WRITE_BIT);
+
+        texture->Sync(reinterpret_cast<const uint8_t*>(pixels));
+
+        texture->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                VK_ACCESS_TRANSFER_WRITE_BIT,
+                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                0);
+
+        context->GetCommandManager().Submit();
+
+        assert(pixels);
+        if (pixels)
+        {
+            free(pixels);
+        }
 
         return texture;
     }

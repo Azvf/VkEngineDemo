@@ -8,11 +8,44 @@
 #include "Buffer.h"
 #include "CommandBuffers.h"
 #include "VkContext.h"
+#include "Buffer.h"
 #include "VkUtil.h"
 
 namespace Chandelier
 {
-    Texture::~Texture() {}
+    size_t TextureFormatToByteSize(VkFormat format) { 
+        size_t byte_size = {};
+        switch (format)
+        {
+            case VK_FORMAT_R8G8B8A8_UNORM:
+                byte_size = 4;
+                break;
+            case VK_FORMAT_R8G8B8A8_SRGB:
+                byte_size = 4;
+                break;
+            case VK_FORMAT_R32G32_SFLOAT:
+                byte_size = 8;
+                break;
+            case VK_FORMAT_R16G16B16A16_SFLOAT:
+                byte_size = 8;
+                break;
+            case VK_FORMAT_R32G32B32A32_SFLOAT:
+                byte_size = 16;
+                break;
+            default:
+                assert(0);
+                break;
+        }
+        return byte_size;
+    }
+
+    Texture::~Texture()
+    {
+        if (m_buffer && m_buffer->IsMapped())
+        {
+            m_buffer->unmap();
+        }
+    }
 
     void Texture::EnsureImageView()
     {
@@ -139,11 +172,10 @@ namespace Chandelier
         alloc_info.memoryTypeIndex =
             m_context->FindMemoryType(mem_requirements.memoryTypeBits, m_mem_props);
 
-        VULKAN_API_CALL(vkAllocateMemory(device, &alloc_info, nullptr, &m_deviceMemory));
-        VULKAN_API_CALL(vkBindImageMemory(device, m_image, m_deviceMemory, 0));
+        VULKAN_API_CALL(vkAllocateMemory(device, &alloc_info, nullptr, &m_device_memory));
+        VULKAN_API_CALL(vkBindImageMemory(device, m_image, m_device_memory, 0));
 
-        m_view_type = (m_image_type == VK_IMAGE_TYPE_2D) ? VK_IMAGE_VIEW_TYPE_2D :
-                                                           VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        m_view_type = (m_cube) ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
 
         VkImageAspectFlags aspect_flags = ConvertToAspectFlags(m_usage);
 
@@ -174,6 +206,7 @@ namespace Chandelier
                             VkMemoryPropertyFlags      mem_props)
     {
         m_context = context;
+        m_cube    = false;
 
         m_width  = width;
         m_height = height;
@@ -199,7 +232,6 @@ namespace Chandelier
                             VkImageUsageFlags          usage)
     {
         assert(0);
-        return;
     }
 
     void Texture::InitCubeMap(std::shared_ptr<VKContext> context,
@@ -209,15 +241,56 @@ namespace Chandelier
                               VkFormat                   format,
                               VkImageUsageFlags          usage)
     {
-        assert(0);
-        return;
+        m_context = context;
+        m_cube    = true;
+
+        m_width  = width;
+        m_height = width;
+        m_layers = std::max(layers, 1) * 6;
+
+        int mip_len_max = 1 + floorf(log2f(std::max(m_width, m_height)));
+        m_mip_levels    = std::min(mip_len, mip_len_max);
+        m_format        = format;
+        m_image_type    = VK_IMAGE_TYPE_2D;
+        m_layout        = VK_IMAGE_LAYOUT_UNDEFINED;
+        m_usage         = usage;
+        m_mem_props     = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        
+        InternalInit();
+    }
+
+    void Texture::InitCubeMap(std::shared_ptr<VKContext>              context,
+                              std::array<std::shared_ptr<Texture>, 6> faces,
+                              int                                     mip_len,
+                              VkFormat                                format)
+    {
+        m_context = context;
+        m_cube    = true;
+
+        assert(faces.front() && faces.back());
+        
+        VkDeviceSize texture_layer_byte_size = GetLayerByteSize();
+        VkDeviceSize cube_byte_size          = texture_layer_byte_size * 6;
+        
+        m_width = faces.front()->getWidth();
+        m_height = faces.front()->getHeight();
+        
+        int mip_len_max = 1 + floorf(log2f(std::max(m_width, m_height)));
+        m_mip_levels    = std::min(mip_len, mip_len_max);
+        m_format        = format;
+        m_image_type    = VK_IMAGE_TYPE_2D;
+        m_layers        = 6;
+        m_usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        
+        InternalInit();
     }
 
     void Texture::Sync(const uint8_t* data)
     {
-        auto staging_buffer = std::make_unique<Buffer>();
-
-        VkDeviceSize data_size = m_width * m_height * 4;
+        auto         staging_buffer   = std::make_unique<Buffer>();
+        size_t       image_layer_size = GetLayerByteSize();
+        assert(m_cube && "not sure if the size is accurate when loading one single cube file");
+        VkDeviceSize data_size        = m_cube ? image_layer_size * 6 : image_layer_size;
         staging_buffer->Allocate(m_context,
                                  data_size,
                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -226,6 +299,38 @@ namespace Chandelier
 
         staging_buffer->map();
         staging_buffer->Update(reinterpret_cast<const uint8_t*>(data), data_size);
+        staging_buffer->Flush();
+        staging_buffer->unmap();
+
+        m_context->CopyBufferToTexture(staging_buffer.get(), this);
+
+        m_context->GetCommandManager().Submit();
+    }
+
+    void Texture::Sync(std::vector<std::shared_ptr<Texture>> textures) {
+        auto staging_buffer = std::make_unique<Buffer>();
+
+        size_t       image_layer_size = GetLayerByteSize();
+        VkDeviceSize data_size        = m_cube ? image_layer_size * 6 : image_layer_size;
+        staging_buffer->Allocate(m_context,
+                                 data_size,
+                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+
+        staging_buffer->map();
+
+        size_t offset = {};
+        for (auto& texture : textures)
+        {
+            uint8_t* data = texture->Data();
+            size_t   size = texture->GetLayerByteSize();
+
+            staging_buffer->Update(data, size, 0, offset);
+            
+            offset += size;
+        }
+
         staging_buffer->Flush();
         staging_buffer->unmap();
 
@@ -256,6 +361,45 @@ namespace Chandelier
             assert(0);
         }
         return aspect_flags;
+    }
+
+    size_t Texture::GetLayerByteSize()
+    {
+        /**
+         * @info: not taking mips into consideration
+         */
+        size_t       pixel_byte_size = TextureFormatToByteSize(m_format);
+        VkDeviceSize data_size       = m_width * m_height * m_layers * pixel_byte_size;
+        return data_size;
+    }
+
+    uint8_t* Texture::Data()
+    {
+        if (!m_buffer)
+        {
+            m_buffer = std::make_shared<Buffer>();
+
+            VkDeviceSize data_size = GetLayerByteSize();
+            m_buffer->Allocate(m_context,
+                               data_size,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               VK_DESCRIPTOR_TYPE_MAX_ENUM);
+        }
+
+        uint8_t* data = nullptr;
+        
+        /**
+         * @todo: caching, just return the mapped data if texture is not updated 
+         */
+        if (!m_buffer->IsMapped())
+        {
+            m_context->CopyTextureToBuffer(this, m_buffer.get());
+        }
+
+        data = m_buffer->map();
+
+        return data;
     }
 
     VkImage Texture::getImage() const { return m_image; }

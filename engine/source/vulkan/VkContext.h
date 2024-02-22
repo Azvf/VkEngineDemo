@@ -59,6 +59,7 @@ namespace Chandelier
     public:
         void TransiteTextureLayout(Texture* texture, VkImageLayout new_layout);
         void CopyBufferToTexture(Buffer* buffer, Texture* texture);
+        void CopyTextureToBuffer(Texture* texture, Buffer* buffer);
 
         void FlushMappedBuffers(std::vector<Buffer*> mapped_buffers);
 
@@ -85,6 +86,8 @@ namespace Chandelier
                                      VkFormatFeatureFlags         features);
 
         VkFormat FindDepthFormat();
+
+        std::vector<VkBufferImageCopy> BuildCopyRegions(Buffer* buffer, Texture* texture);
 
     private:
         VkInstance                 m_instance;

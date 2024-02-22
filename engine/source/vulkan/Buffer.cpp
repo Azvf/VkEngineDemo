@@ -76,8 +76,10 @@ namespace Chandelier
 
     uint8_t* Buffer::map()
     {
-        assert(!m_mappedPtr);
-        VULKAN_API_CALL(vkMapMemory(m_context->getDevice(), m_memory, 0, m_size, 0, (void**)&m_mappedPtr));
+        if (!m_mappedPtr)
+        {
+            VULKAN_API_CALL(vkMapMemory(m_context->getDevice(), m_memory, 0, m_size, 0, (void**)&m_mappedPtr));
+        }
         return m_mappedPtr;
     }
 

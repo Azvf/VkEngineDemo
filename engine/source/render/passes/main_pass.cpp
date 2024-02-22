@@ -59,9 +59,25 @@ namespace Chandelier
         /**
          * @todo: assets managed through asset manager
          */
-        m_meshes.push_back(LoadObjModel(context, "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\assets\\Boat\\Boat.obj"));
-        m_textures.push_back(LoadTexture(context, "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\assets\\Boat\\texture\\bench 1_Base_color.png"));
-        m_textures.push_back(LoadTexture(context, "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\assets\\Boat\\texture\\bench 1_Normal.png"));
+        m_meshes.push_back(LoadObjModel(context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/Boat/Boat.obj"));
+        m_textures.push_back(LoadTexture(context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/Boat/texture/bench 1_Base_color.png"));
+        m_textures.push_back(LoadTexture(context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/Boat/texture/bench 1_Normal.png"));
+        
+        std::array<std::shared_ptr<Texture>, 6> faces;
+        faces[0] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X+.hdr", 4);
+        faces[1] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X-.hdr", 4);
+        faces[2] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y+.hdr", 4);
+        faces[3] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y-.hdr", 4);
+        faces[4] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z+.hdr", 4);
+        faces[5] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z-.hdr", 4);
+
+        m_skybox_tex = LoadSkybox(context, faces, 4);
 
         SetupUniformBuffer();
         SetupDescriptorSets();
@@ -85,7 +101,7 @@ namespace Chandelier
 
         m_ubo = std::make_shared<Buffer>();
         m_ubo->Allocate(context,
-                        sizeof(MainPassUniformBuffer), // todo: op away magic number
+                        sizeof(MainPassUniformBuffer),
                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -267,11 +283,6 @@ namespace Chandelier
         render_pass_info.dependencyCount = dependencies.size();
         render_pass_info.pDependencies   = dependencies.data();
         VULKAN_API_CALL(vkCreateRenderPass(context->getDevice(), &render_pass_info, nullptr, &m_render_pipeline.render_pass));
-
-        for (auto& framebuffer : m_framebuffers)
-        {
-            framebuffer.render_pass = m_render_pipeline.render_pass;
-        }
 
         /**
          * @todo: implement the global path configurer and asset manager to eliminate the abs path

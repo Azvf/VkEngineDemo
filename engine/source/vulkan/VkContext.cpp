@@ -384,27 +384,44 @@ namespace Chandelier {
             sourceStage, destinationStage, std::vector<VkImageMemoryBarrier> {barrier});
     }
 
-    void VKContext::CopyBufferToTexture(Buffer* buffer, Texture* texture) {
+    std::vector<VkBufferImageCopy> VKContext::BuildCopyRegions(Buffer* buffer, Texture* texture)
+    {
         VkDeviceSize buffer_size = buffer->getSize();
-        VkDeviceSize tex_size = texture->getWidth() * texture->getHeight() * 4;
-        if (buffer_size != tex_size) {
+
+        size_t       pixel_byte_size = TextureFormatToByteSize(texture->getFormat());
+        VkDeviceSize tex_size        = texture->getWidth() * texture->getHeight() * pixel_byte_size;
+
+        if (buffer_size != tex_size)
+        {
             ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
         }
-        
+
         VkBufferImageCopy region = {};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
+        region.bufferOffset      = 0;
+        region.bufferRowLength   = 0;
         region.bufferImageHeight = 0;
-        
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = 0;
+
+        region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel       = 0;
         region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
-        
-        region.imageOffset = { 0, 0, 0 };
+        region.imageSubresource.layerCount     = 1;
+
+        region.imageOffset = {0, 0, 0};
         region.imageExtent = {texture->getWidth(), texture->getHeight(), 1};
-        
-        m_command_manager.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
+
+        return std::vector<VkBufferImageCopy> {region};
+    }
+
+    void VKContext::CopyBufferToTexture(Buffer* buffer, Texture* texture)
+    {
+        auto regions = BuildCopyRegions(buffer, texture);
+        m_command_manager.Copy(buffer, texture, regions);
+    }
+
+    void VKContext::CopyTextureToBuffer(Texture* texture, Buffer* buffer)
+    {
+        auto regions = BuildCopyRegions(buffer, texture);
+        m_command_manager.Copy(texture, buffer, regions);
     }
 
     void VKContext::FlushMappedBuffers(std::vector<Buffer*> mapped_buffers) {

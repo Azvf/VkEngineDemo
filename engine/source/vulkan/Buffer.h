@@ -38,6 +38,9 @@ namespace Chandelier
         uint8_t*         m_mappedPtr = nullptr;
         VkBuffer         m_buffer    = VK_NULL_HANDLE;
         VkDeviceMemory   m_memory    = VK_NULL_HANDLE;
+        /**
+         * @todo: change to optional
+         */
         VkDescriptorType m_bind_type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
 
         VkMemoryPropertyFlags m_mem_props;
