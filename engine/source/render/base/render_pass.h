@@ -7,20 +7,22 @@
 namespace Chandelier
 {
     class GlobalRenderResource;
-    class Descriptor;
+    class DescriptorTracker;
 
     enum eAttachment : uint8_t
     {
         Color_Attachment        = 0,
         DepthStencil_Attachment = 1,
-        UI_Attachment           = 2,
+        Skybox_Attachment       = 2,
+        UI_Attachment           = 3,
         Attachment_Max_Count
     };
 
     enum RenderPassSubpass : uint8_t
     {
         Subpass_Base_Pass   = 0,
-        Subpass_UI_Pass     = 1,
+        Subpass_Skybox_Pass = 1,
+        Subpass_UI_Pass     = 2,
         Subpass_Count,
     };
 
@@ -57,7 +59,6 @@ namespace Chandelier
 
         std::shared_ptr<GlobalRenderResource> m_global_render_resource;
 
-        // std::vector<Descriptor>         m_descriptor_infos;
         std::vector<Framebuffer> m_framebuffers;
         
         RenderPassContext m_context;

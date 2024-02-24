@@ -64,7 +64,7 @@ namespace Chandelier
 
         binding.type        = buffer->GetBindType();
         binding.vk_buffer   = buffer->getBuffer();
-        binding.buffer_size = buffer->getSize();
+        binding.buffer_size = buffer->GetBufferSize();
 
         binding.shader_stages = stages;
     }

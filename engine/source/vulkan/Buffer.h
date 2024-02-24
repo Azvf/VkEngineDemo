@@ -13,10 +13,12 @@ namespace Chandelier
 
         VkBuffer       getBuffer() const;
         VkDeviceMemory getMemory() const;
-        VkDeviceSize   getSize() const;
         VkDeviceSize   getOffset() const;
         uint8_t*       map();
         void           unmap();
+
+        VkDeviceSize GetBufferSize() const;
+        VkDeviceSize GetMemorySize() const;
 
         bool IsMapped();
         void Update(const uint8_t* data, size_t size, uint64_t src_offset = 0, uint64_t dst_offset = 0);
@@ -33,7 +35,8 @@ namespace Chandelier
         VkBufferUsageFlags GetUsage();
 
     protected:
-        VkDeviceSize     m_size      = {};
+        VkDeviceSize     m_buffer_size = {};
+        VkDeviceSize     m_memory_size = {};
         VkDeviceSize     m_offset    = {};
         uint8_t*         m_mappedPtr = nullptr;
         VkBuffer         m_buffer    = VK_NULL_HANDLE;

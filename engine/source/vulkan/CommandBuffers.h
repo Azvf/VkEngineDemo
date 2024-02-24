@@ -84,6 +84,8 @@ namespace Chandelier
         void ActivateFramebuffer(Framebuffer& framebuffer);
 
         void Draw(Mesh* mesh);
+        void Draw(uint32_t vertex_count, uint32_t instance_count);
+        
         // todo: optimize interface
         void DrawIndexed(Mesh* mesh);
 

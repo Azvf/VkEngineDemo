@@ -386,10 +386,10 @@ namespace Chandelier {
 
     std::vector<VkBufferImageCopy> VKContext::BuildCopyRegions(Buffer* buffer, Texture* texture)
     {
-        VkDeviceSize buffer_size = buffer->getSize();
+        VkDeviceSize buffer_size = buffer->GetBufferSize();
 
         size_t       pixel_byte_size = TextureFormatToByteSize(texture->getFormat());
-        VkDeviceSize tex_size        = texture->getWidth() * texture->getHeight() * pixel_byte_size;
+        VkDeviceSize tex_size        = texture->getWidth() * texture->getHeight() * texture->getLayers() * pixel_byte_size;
 
         if (buffer_size != tex_size)
         {
@@ -404,7 +404,7 @@ namespace Chandelier {
         region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
         region.imageSubresource.mipLevel       = 0;
         region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount     = 1;
+        region.imageSubresource.layerCount     = texture->getLayers();
 
         region.imageOffset = {0, 0, 0};
         region.imageExtent = {texture->getWidth(), texture->getHeight(), 1};
@@ -434,7 +434,7 @@ namespace Chandelier {
             mappedRange.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
             mappedRange.memory = buffer->getMemory();
             mappedRange.offset = buffer->getOffset();
-            mappedRange.size   = buffer->getSize();
+            mappedRange.size   = buffer->GetMemorySize();
 
             mapped_ranges.push_back(mappedRange);
         }

@@ -436,11 +436,16 @@ namespace Chandelier
     }
 
     void CommandBufferManager::Draw(Mesh* mesh)
+    { 
+        this->Draw(mesh->getVertexCount(), 1);
+    }
+
+    void CommandBufferManager::Draw(uint32_t vertex_count, uint32_t instance_count)
     {
         // EnsureActiveFramebuffer();
 
         CommandBuffer& command_buffer = GetCommandBuffer(Graphics);
-        vkCmdDraw(command_buffer.Handle(), mesh->getVertexCount(), mesh->getIndexCount(), 0, 0);
+        vkCmdDraw(command_buffer.Handle(), vertex_count, instance_count, 0, 0);
         command_buffer.CommandRecorded();
     }
 

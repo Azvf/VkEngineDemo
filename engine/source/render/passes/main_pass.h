@@ -6,7 +6,6 @@
 namespace Chandelier
 {
     class Buffer;
-    class DescriptorTracker;
 
     struct MainPassUniformBuffer
     {
@@ -81,10 +80,12 @@ namespace Chandelier
         /**
          * @todo: implement asset mananger to manage
          */
-        std::shared_ptr<Texture>              m_skybox_tex;
         std::vector<std::shared_ptr<Texture>> m_textures;
         std::vector<std::shared_ptr<Mesh>>    m_meshes;
         
+        /**
+         * @todo: optimize use push constants
+         */
         std::shared_ptr<Buffer> m_ubo;
         std::shared_ptr<DescriptorTracker> m_desc_tracker;
 

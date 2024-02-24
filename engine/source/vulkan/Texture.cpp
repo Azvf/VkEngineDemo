@@ -115,6 +115,7 @@ namespace Chandelier
                                  VkPipelineStageFlags dst_stage,
                                  VkAccessFlags        dst_access)
     {
+        // assert(m_layout == requested_layout);
         if (m_layout == requested_layout)
             return;
 
@@ -142,13 +143,13 @@ namespace Chandelier
 
         VkImageCreateInfo image_info = {};
         image_info.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        image_info.flags             = 0;
+        image_info.flags             = m_cube ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
         image_info.imageType         = m_image_type;
         image_info.extent.width      = m_width;
         image_info.extent.height     = m_height;
-        image_info.extent.depth      = m_layers;
+        image_info.extent.depth      = 1;
         image_info.mipLevels         = std::max((int)m_mip_levels, 1);
-        image_info.arrayLayers       = 1;
+        image_info.arrayLayers       = m_layers;
         image_info.format            = m_format;
         /* Some platforms (NVIDIA) requires that attached textures are always tiled optimal.
          *
@@ -241,6 +242,7 @@ namespace Chandelier
                               VkFormat                   format,
                               VkImageUsageFlags          usage)
     {
+        assert(0 && "wip, not tested");
         m_context = context;
         m_cube    = true;
 
@@ -269,9 +271,6 @@ namespace Chandelier
 
         assert(faces.front() && faces.back());
         
-        VkDeviceSize texture_layer_byte_size = GetLayerByteSize();
-        VkDeviceSize cube_byte_size          = texture_layer_byte_size * 6;
-        
         m_width = faces.front()->getWidth();
         m_height = faces.front()->getHeight();
         
@@ -289,7 +288,7 @@ namespace Chandelier
     {
         auto         staging_buffer   = std::make_unique<Buffer>();
         size_t       image_layer_size = GetLayerByteSize();
-        assert(m_cube && "not sure if the size is accurate when loading one single cube file");
+        assert(!m_cube && "not sure if the size is accurate when loading one single cube file");
         VkDeviceSize data_size        = m_cube ? image_layer_size * 6 : image_layer_size;
         staging_buffer->Allocate(m_context,
                                  data_size,
@@ -356,6 +355,10 @@ namespace Chandelier
         {
             aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
         }
+        else if (m_usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+        {
+            aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+        }
         else
         {
             assert(0);
@@ -369,7 +372,7 @@ namespace Chandelier
          * @info: not taking mips into consideration
          */
         size_t       pixel_byte_size = TextureFormatToByteSize(m_format);
-        VkDeviceSize data_size       = m_width * m_height * m_layers * pixel_byte_size;
+        VkDeviceSize data_size       = m_width * m_height * pixel_byte_size;
         return data_size;
     }
 
@@ -379,7 +382,7 @@ namespace Chandelier
         {
             m_buffer = std::make_shared<Buffer>();
 
-            VkDeviceSize data_size = GetLayerByteSize();
+            VkDeviceSize data_size = GetLayerByteSize() * m_layers;
             m_buffer->Allocate(m_context,
                                data_size,
                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -396,7 +399,12 @@ namespace Chandelier
         {
             m_context->CopyTextureToBuffer(this, m_buffer.get());
         }
-
+        
+        /**
+         * @info: blocking on cpu so we don't get empty data on memory 
+         */
+        m_context->GetCommandManager().Submit();
+        
         data = m_buffer->map();
 
         return data;

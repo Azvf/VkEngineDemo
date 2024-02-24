@@ -51,6 +51,8 @@ namespace Chandelier
         const auto& device = context->getDevice();
         VULKAN_API_CALL(vkCreateBuffer(device, &buffer_info, nullptr, &m_buffer));
 
+        m_buffer_size = buffer_info.size;
+
         VkMemoryRequirements memRequirements;
         vkGetBufferMemoryRequirements(device, m_buffer, &memRequirements);
 
@@ -63,14 +65,16 @@ namespace Chandelier
         VULKAN_API_CALL(vkAllocateMemory(device, &alloc_info, nullptr, &m_memory));
         VULKAN_API_CALL(vkBindBufferMemory(device, m_buffer, m_memory, 0));
         
-        m_size = memRequirements.size;
+        m_memory_size = memRequirements.size;
     }
 
     VkBuffer Buffer::getBuffer() const { return m_buffer; }
 
     VkDeviceMemory Buffer::getMemory() const { return m_memory; }
 
-    VkDeviceSize Buffer::getSize() const { return m_size; }
+    VkDeviceSize Buffer::GetBufferSize() const { return m_buffer_size; }
+
+    VkDeviceSize Buffer::GetMemorySize() const { return m_memory_size; }
 
     VkDeviceSize Buffer::getOffset() const { return m_offset; }
 
@@ -78,7 +82,7 @@ namespace Chandelier
     {
         if (!m_mappedPtr)
         {
-            VULKAN_API_CALL(vkMapMemory(m_context->getDevice(), m_memory, 0, m_size, 0, (void**)&m_mappedPtr));
+            VULKAN_API_CALL(vkMapMemory(m_context->getDevice(), m_memory, 0, m_memory_size, 0, (void**)&m_mappedPtr));
         }
         return m_mappedPtr;
     }
