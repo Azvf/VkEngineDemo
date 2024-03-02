@@ -8,6 +8,8 @@
 #include <tinyobjloader/tiny_obj_loader.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb/stb_image_write.h>
 
 #include "runtime/framework/config_manager/config_manager.h"
 
@@ -15,6 +17,7 @@
 #include "VkContext.h"
 #include "Mesh.h"
 #include "Texture.h"
+#include "Buffer.h"
 #include "CommandBuffers.h"
 
 namespace std
@@ -24,8 +27,11 @@ namespace std
     {
         size_t operator()(Chandelier::ShaderData::Vertex const& vertex) const
         {
-            return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
-                   (hash<glm::vec2>()(vertex.texCoord) << 1);
+            // Include the tangent parameter in the hash calculation
+            return (((((hash<glm::vec3>()(vertex.position) ^
+                        (hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^
+                        (hash<glm::vec2>()(vertex.texcoord) << 1)) ^
+                        (hash<glm::vec3>()(vertex.tangent) << 2))); // Assuming tangent is a glm::vec3
         }
     };
 } // namespace std
@@ -37,49 +43,207 @@ namespace Chandelier
         return std::filesystem::absolute(relative_path);
     }
 
-    std::shared_ptr<Mesh> LoadObjModel(std::shared_ptr<VKContext> context, std::string_view path)
+    struct MeshVertexDataDefinition
     {
-        tinyobj::attrib_t                attrib;
-        std::vector<tinyobj::shape_t>    shapes;
-        std::vector<tinyobj::material_t> materials;
-        std::string                      warn, err;
+        float x, y, z;    // position
+        float nx, ny, nz; // normal
+        float tx, ty, tz; // tangent
+        float u, v;       // UV coordinates
+    };
 
-        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.data()))
+    std::shared_ptr<Mesh> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename)
+    {
+        auto mesh = std::make_shared<Mesh>();
+
+        tinyobj::ObjReader       reader;
+        tinyobj::ObjReaderConfig reader_config;
+        reader_config.vertex_color = false;
+        if (!reader.ParseFromFile(filename.data(), reader_config))
         {
-            throw std::runtime_error(warn + err);
-        }
-
-        std::unordered_map<ShaderData::Vertex, uint32_t> uniqueVertices {};
-
-        std::vector<ShaderData::Vertex> vertices;
-        std::vector<uint32_t> indices;
-
-        for (const auto& shape : shapes)
-        {
-            for (const auto& index : shape.mesh.indices)
+            if (!reader.Error().empty())
             {
-                ShaderData::Vertex vertex {};
-
-                vertex.pos = {attrib.vertices[3 * index.vertex_index + 0],
-                              attrib.vertices[3 * index.vertex_index + 1],
-                              attrib.vertices[3 * index.vertex_index + 2]};
-
-                vertex.texCoord = {attrib.texcoords[2 * index.texcoord_index + 0],
-                                   1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
-
-                vertex.color = {1.0f, 1.0f, 1.0f};
-
-                if (uniqueVertices.count(vertex) == 0)
-                {
-                    uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                    vertices.push_back(vertex);
-                }
-
-                indices.push_back(uniqueVertices[vertex]);
+                auto error = reader.Error();
+                assert(0);
             }
         }
 
-        return Mesh::load(context, vertices, indices);
+        if (!reader.Warning().empty())
+        {
+            auto warning = reader.Warning();
+            // assert(0);
+        }
+
+        auto& attrib = reader.GetAttrib();
+        auto& shapes = reader.GetShapes();
+
+        std::unordered_map<ShaderData::Vertex, uint32_t> unique_vertices;
+
+        std::vector<ShaderData::Vertex> mesh_vertices;
+        std::vector<uint32_t>           mesh_indices;
+
+        uint32_t mesh_properties = {};
+        if (attrib.normals.size())
+        {
+            mesh_properties |= (Has_Normal | Has_Tangent);
+        }
+        if (attrib.texcoords.size())
+        {
+            mesh_properties |= Has_UV;
+        }
+
+        for (size_t s = 0; s < shapes.size(); s++)
+        {
+            size_t index_offset = 0;
+            for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
+            {
+                size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+
+                bool with_normal   = true;
+                bool with_texcoord = true;
+
+                Vector3 vertex[3];
+                Vector3 normal[3];
+                Vector2 uv[3];
+
+                // only deals with triangle faces
+                if (fv != 3)
+                {
+                    assert(0);
+                    continue;
+                }
+
+                // expanding vertex data is not efficient and is for testing purposes only
+                for (size_t v = 0; v < fv; v++)
+                {
+                    auto idx = shapes[s].mesh.indices[index_offset + v];
+                    auto vx  = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+                    auto vy  = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+                    auto vz  = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+
+                    vertex[v].x = static_cast<float>(vx);
+                    vertex[v].y = static_cast<float>(vy);
+                    vertex[v].z = static_cast<float>(vz);
+
+                    if (idx.normal_index >= 0)
+                    {
+                        auto nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+                        auto ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+                        auto nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+
+                        normal[v].x = static_cast<float>(nx);
+                        normal[v].y = static_cast<float>(ny);
+                        normal[v].z = static_cast<float>(nz);
+                    }
+                    else
+                    {
+                        with_normal = false;
+                    }
+
+                    if (idx.texcoord_index >= 0)
+                    {
+                        auto tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+                        auto ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+
+                        uv[v].x = static_cast<float>(tx);
+                        uv[v].y = static_cast<float>(ty);
+                    }
+                    else
+                    {
+                        with_texcoord = false;
+                    }
+                }
+                index_offset += fv;
+
+                if (!with_normal)
+                {
+                    Vector3 v0 = vertex[1] - vertex[0];
+                    Vector3 v1 = vertex[2] - vertex[1];
+                    normal[0]  = v0.crossProduct(v1).normalisedCopy();
+                    normal[1]  = normal[0];
+                    normal[2]  = normal[0];
+                }
+
+                if (!with_texcoord)
+                {
+                    uv[0] = Vector2(0.5f, 0.5f);
+                    uv[1] = Vector2(0.5f, 0.5f);
+                    uv[2] = Vector2(0.5f, 0.5f);
+                }
+
+                Vector3 tangent {1, 0, 0};
+                {
+                    Vector3 edge1    = vertex[1] - vertex[0];
+                    Vector3 edge2    = vertex[2] - vertex[1];
+                    Vector2 deltaUV1 = uv[1] - uv[0];
+                    Vector2 deltaUV2 = uv[2] - uv[1];
+
+                    auto divide = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
+                    if (divide >= 0.0f && divide < 0.000001f)
+                        divide = 0.000001f;
+                    else if (divide < 0.0f && divide > -0.000001f)
+                        divide = -0.000001f;
+
+                    float df  = 1.0f / divide;
+                    tangent.x = df * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+                    tangent.y = df * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+                    tangent.z = df * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+                    tangent   = tangent.normalisedCopy();
+                }
+
+                for (size_t i = 0; i < 3; i++)
+                {
+                    ShaderData::Vertex mesh_vert {};
+
+                    mesh_vert.position.x = vertex[i].x;
+                    mesh_vert.position.y = vertex[i].y;
+                    mesh_vert.position.z = vertex[i].z;
+
+                    mesh_vert.normal.x = normal[i].x;
+                    mesh_vert.normal.y = normal[i].y;
+                    mesh_vert.normal.z = normal[i].z;
+
+                    mesh_vert.texcoord.x = uv[i].x;
+                    mesh_vert.texcoord.y = uv[i].y;
+
+                    mesh_vert.tangent.x = tangent.x;
+                    mesh_vert.tangent.y = tangent.y;
+                    mesh_vert.tangent.z = tangent.z;
+
+                    if (!unique_vertices.count(mesh_vert))
+                    {
+                        unique_vertices[mesh_vert] = static_cast<uint32_t>(mesh_vertices.size());
+                        mesh_vertices.push_back(mesh_vert);
+                    }
+
+                    mesh_indices.push_back(unique_vertices[mesh_vert]);
+                }
+            }
+        }
+
+        std::vector<float> input_vertices;
+        for (auto& v : mesh_vertices)
+        {
+            input_vertices.push_back(v.position.x);
+            input_vertices.push_back(v.position.y);
+            input_vertices.push_back(v.position.z);
+
+            input_vertices.push_back(v.normal.x);
+            input_vertices.push_back(v.normal.y);
+            input_vertices.push_back(v.normal.z);
+
+            input_vertices.push_back(v.tangent.x);
+            input_vertices.push_back(v.tangent.y);
+            input_vertices.push_back(v.tangent.z);
+
+            input_vertices.push_back(v.texcoord.x);
+            input_vertices.push_back(v.texcoord.y);
+        }
+        return mesh->load(context,
+                          mesh_properties,
+                          input_vertices.data(),
+                          input_vertices.size(),
+                          mesh_indices.data(),
+                          mesh_indices.size());
     }
 
     static VkFormat CubeMapChannelsToFormat(int desired_channels) {
@@ -103,7 +267,8 @@ namespace Chandelier
         return format;
     }
 
-    std::shared_ptr<Texture> LoadTexture(std::shared_ptr<VKContext> context, std::string_view path)
+    std::shared_ptr<Texture>
+    LoadTexture(std::shared_ptr<VKContext> context, std::string_view path, ColorSpace color_space)
     {
         int texWidth, texHeight, texChannels;
         
@@ -116,13 +281,27 @@ namespace Chandelier
             return std::shared_ptr<Texture>();
         }
 
+        VkFormat format;
+        switch (color_space)
+        {
+            case SRGB_Color_Space:
+                format = VK_FORMAT_R8G8B8A8_SRGB;
+                break;
+            case Linear_Color_Space:
+                format = VK_FORMAT_R8G8B8A8_UNORM;
+                break;
+            default:
+                assert(0);
+                break;
+        }
+
         auto texture = std::make_shared<Texture>();
         texture->InitTex2D(context,
                            texWidth,
                            texHeight,
                            1,
                            1,
-                           VK_FORMAT_R8G8B8A8_SRGB,
+                           format,
                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -143,12 +322,6 @@ namespace Chandelier
         
         context->GetCommandManager().Submit();
 
-        assert(pixels);
-        if (pixels)
-        {
-            free(pixels);
-        }
-        
         return texture;
     }
 
@@ -164,8 +337,12 @@ namespace Chandelier
     {
         auto     texture = std::make_shared<Texture>();
         VkFormat format  = CubeMapChannelsToFormat(desired_channels);
+
+        int width = faces.front()->getWidth();
+        int height = faces.front()->getHeight();
         
-        texture->InitCubeMap(context, faces, 1, format);
+        uint32_t cubemap_miplevels = std::floor(log2(std::max(width, height))) + 1;
+        texture->InitCubeMap(context, faces, cubemap_miplevels, format);
         
         texture->TransferLayout(VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -188,24 +365,7 @@ namespace Chandelier
         
         texture->Sync(face_vec);
 
-        for (auto& face : faces)
-        {
-            face->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                 0,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_ACCESS_TRANSFER_WRITE_BIT);
-        }
-
-        texture->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                VK_ACCESS_TRANSFER_WRITE_BIT,
-                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                0);
-
-        context->GetCommandManager().Submit();
+        context->GenerateMipMaps(texture.get(), cubemap_miplevels);
 
         return texture;
     }
@@ -251,13 +411,19 @@ namespace Chandelier
 
         context->GetCommandManager().Submit();
 
-        assert(pixels);
-        if (pixels)
-        {
-            free(pixels);
-        }
-
         return texture;
+    }
+
+    void SaveTexture(std::shared_ptr<Texture> texture,
+                     std::string_view         path,
+                     uint32_t                 framebuffer_index,
+                     uint32_t                 attachment_index)
+    {
+        const uint8_t* pixels = texture->Data();
+        uint32_t       width = texture->getWidth(), height = texture->getHeight();
+        uint32_t       channels = 4;
+        int            result   = stbi_write_png(path.data(), width, height, channels, pixels, width * channels);
+        assert(result);
     }
 
 }

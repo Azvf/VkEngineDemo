@@ -71,11 +71,17 @@ namespace Chandelier
         }
     };
 
+    enum ColorSpace : uint8_t
+    {
+        SRGB_Color_Space,
+        Linear_Color_Space
+    };
+
     extern std::filesystem::path GetFullPath(std::string_view relative_path);
 
-    extern std::shared_ptr<Mesh> LoadObjModel(std::shared_ptr<VKContext> context, std::string_view path);
+    extern std::shared_ptr<Mesh> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename);
 
-    extern std::shared_ptr<Texture> LoadTexture(std::shared_ptr<VKContext> context, std::string_view path);
+    extern std::shared_ptr<Texture> LoadTexture(std::shared_ptr<VKContext> context, std::string_view path, ColorSpace color_space);
 
     extern std::shared_ptr<Texture> LoadTextureHDR(std::shared_ptr<VKContext> context, std::string_view path, int desired_channels);
 
@@ -84,5 +90,11 @@ namespace Chandelier
 
     extern std::shared_ptr<Texture>
     LoadSkybox(std::shared_ptr<VKContext> context, std::array<std::shared_ptr<Texture>, 6> faces, int desired_channels);
+
+    extern void SaveTexture(std::shared_ptr<Texture> texture,
+                            std::string_view         path,
+                            uint32_t                 framebuffer_index,
+                            uint32_t                 attachment_index);
+    
 
 } // namespace Chandelier
