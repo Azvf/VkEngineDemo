@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <string>
 
 #include "VkCreateInfo.h"
 #include "runtime/core/base/index_range.h"
@@ -35,8 +36,20 @@ namespace Chandelier
         uint32_t      getLayers() const;
         VkImageLayout getLayout() const;
 
-        uint8_t* Data();
-        size_t   GetLayerByteSize();
+        const uint8_t* Data();
+
+        size_t GetLayerByteSize();
+        
+        std::optional<VkClearValue> GetClearValue();
+
+        void UnInit();
+
+        void InitAttachment(std::shared_ptr<VKContext> context,
+                            int                        width,
+                            int                        height,
+                            VkFormat                   format,
+                            VkImageUsageFlags          usage,
+                            bool                       use_msaa = false);
 
         void InitTex2D(std::shared_ptr<VKContext> context,
                        int                        width,
@@ -115,6 +128,7 @@ namespace Chandelier
         /**
          * @warning: vulkan does not offer api for checking vkimage layout, thus the layout is just not accurate, 
          * thinking about deprecating the layout member
+         * NEEDS TO BE REVAMPPED
          */
         VkImageLayout         m_layout;
         VkImageUsageFlags     m_usage;
@@ -124,11 +138,18 @@ namespace Chandelier
          * @todo: will using mapping be a performance hit, or just maintain the pointer got from stb loading? 
          */
         std::shared_ptr<Buffer> m_buffer;
-        uint8_t*                data = nullptr;
+        const uint8_t*          m_data = nullptr;
 
         bool m_view_dirty = false;
 
         bool m_cube = false;
+
+        bool m_is_attachment_texture = false;
+
+        bool m_use_msaa = false;
+
+        std::optional<VkClearValue> m_clear_value;
+
     };
 
     extern size_t TextureFormatToByteSize(VkFormat format);

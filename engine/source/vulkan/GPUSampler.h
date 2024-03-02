@@ -20,6 +20,10 @@ namespace Chandelier
          * black color (0, 0, 0, 0) and can't be changed.
          */
         GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_BORDER,
+
+        GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_EDGE,
+        
+        GPU_SAMPLER_EXTEND_MODE_COUNT
     };
 
     enum GPUSamplerFiltering : uint8_t
@@ -102,7 +106,7 @@ namespace Chandelier
         GPU_SAMPLER_CUSTOM_ICON,
     };
 
-    static const int GPU_SAMPLER_EXTEND_MODES_COUNT = GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_BORDER + 1;
+    static const int GPU_SAMPLER_EXTEND_MODES_COUNT = GPU_SAMPLER_EXTEND_MODE_COUNT;
 
     static const int GPU_SAMPLER_FILTERING_TYPES_COUNT =
         (GPU_SAMPLER_FILTERING_LINEAR | GPU_SAMPLER_FILTERING_MIPMAP | GPU_SAMPLER_FILTERING_ANISOTROPIC) + 1;
@@ -140,6 +144,15 @@ namespace Chandelier
             return {GPU_SAMPLER_FILTERING_DEFAULT,
                     GPU_SAMPLER_EXTEND_MODE_EXTEND,
                     GPU_SAMPLER_EXTEND_MODE_EXTEND,
+                    GPU_SAMPLER_CUSTOM_COMPARE,
+                    GPU_SAMPLER_STATE_TYPE_PARAMETERS};
+        }
+
+        static constexpr GPUSamplerState cubemap_sampler()
+        {
+            return {GPU_SAMPLER_FILTERING_LINEAR,
+                    GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_EDGE,
+                    GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_EDGE,
                     GPU_SAMPLER_CUSTOM_COMPARE,
                     GPU_SAMPLER_STATE_TYPE_PARAMETERS};
         }
@@ -208,6 +221,8 @@ namespace Chandelier
                 return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
             case GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_BORDER:
                 return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+            case GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_EDGE:
+                return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         }
 
         assert(0);

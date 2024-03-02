@@ -76,6 +76,10 @@ namespace Chandelier
 
         void TransferRenderPassResultToSwapchain(const RenderPass* render_pass);
 
+        VkSampleCountFlagBits GetSuitableSampleCount();
+
+        void GenerateMipMaps(Texture* texture, int mipmap_levels);
+
     private:
         bool CheckValidationLayerSupport();
 
@@ -88,6 +92,8 @@ namespace Chandelier
         VkFormat FindDepthFormat();
 
         std::vector<VkBufferImageCopy> BuildCopyRegions(Buffer* buffer, Texture* texture);
+
+        VkSampleCountFlagBits GetMaxUsableSampledCount();
 
     private:
         VkInstance                 m_instance;

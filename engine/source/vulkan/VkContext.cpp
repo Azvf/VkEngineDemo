@@ -571,7 +571,9 @@ namespace Chandelier {
      }
 
     void VKContext::TransferRenderPassResultToSwapchain(const RenderPass* render_pass) {
+        assert(0 && "need to be revampped");
         auto render_pass_attachment = render_pass->m_framebuffers[m_frame_index].attachments[Color_Attachment];
+
         auto extent = m_swapchain.getExtent();
         std::vector<VkImageBlit> regions;
 
@@ -658,5 +660,139 @@ namespace Chandelier {
 
         return true;
     }
+    
+    VkSampleCountFlagBits VKContext::GetSuitableSampleCount() { 
+        assert(VK_SAMPLE_COUNT_8_BIT <= GetMaxUsableSampledCount());
+        if (VK_SAMPLE_COUNT_8_BIT <= GetMaxUsableSampledCount())
+        {
+            return VK_SAMPLE_COUNT_8_BIT;
+        }
+        return VK_SAMPLE_COUNT_1_BIT;
+    }
+
+    VkSampleCountFlagBits VKContext::GetMaxUsableSampledCount()
+    {
+        VkPhysicalDeviceProperties phy_device_props;
+        vkGetPhysicalDeviceProperties(m_physicalDevice, &phy_device_props);
+
+        VkSampleCountFlags counts =
+            phy_device_props.limits.framebufferColorSampleCounts & phy_device_props.limits.framebufferDepthSampleCounts;
+
+        if (counts & VK_SAMPLE_COUNT_64_BIT)
+        {
+            return VK_SAMPLE_COUNT_64_BIT;
+        }
+        if (counts & VK_SAMPLE_COUNT_32_BIT)
+        {
+            return VK_SAMPLE_COUNT_32_BIT;
+        }
+        if (counts & VK_SAMPLE_COUNT_16_BIT)
+        {
+            return VK_SAMPLE_COUNT_16_BIT;
+        }
+        if (counts & VK_SAMPLE_COUNT_8_BIT)
+        {
+            return VK_SAMPLE_COUNT_8_BIT;
+        }
+        if (counts & VK_SAMPLE_COUNT_4_BIT)
+        {
+            return VK_SAMPLE_COUNT_4_BIT;
+        }
+        if (counts & VK_SAMPLE_COUNT_2_BIT)
+        {
+            return VK_SAMPLE_COUNT_2_BIT;
+        }
+
+        return VK_SAMPLE_COUNT_1_BIT;
+    }
+
+    void VKContext::GenerateMipMaps(Texture* texture, int mipmap_levels)
+    {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(m_physicalDevice, texture->getFormat(), &props);
+        if (!(props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+        {
+            assert(0);
+            return;
+        }
+
+        int32_t mip_width  = texture->getWidth();
+        int32_t mip_height = texture->getHeight();
+        int32_t layers     = texture->getLayers();
+
+        VkImageMemoryBarrier barrier {};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.image                           = texture->getImage();
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = layers;
+        barrier.subresourceRange.levelCount     = 1; // 1 level a time
+
+        for (uint32_t i = 1; i < mipmap_levels; i++)
+        {
+            barrier.subresourceRange.baseMipLevel = i - 1;
+            barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout                     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask                 = VK_ACCESS_TRANSFER_READ_BIT;
+
+            m_command_manager.IssuePipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                   std::vector<VkImageMemoryBarrier> {barrier});
+
+            VkImageBlit blit_info {};
+            blit_info.srcOffsets[0]                 = {0, 0, 0};
+            blit_info.srcOffsets[1]                 = {mip_width, mip_height, 1};
+            blit_info.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit_info.srcSubresource.mipLevel       = i - 1;
+            blit_info.srcSubresource.baseArrayLayer = 0;
+            blit_info.srcSubresource.layerCount     = layers; // miplevel i-1 to i for all layers
+
+            blit_info.dstOffsets[0] = {0, 0, 0};
+            blit_info.dstOffsets[1] = {mip_width > 1 ? mip_width / 2 : 1, mip_height > 1 ? mip_height / 2 : 1, 1};
+            blit_info.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit_info.dstSubresource.mipLevel       = i;
+            blit_info.dstSubresource.baseArrayLayer = 0;
+            blit_info.dstSubresource.layerCount     = layers;
+
+            m_command_manager.Blit(texture->getImage(),
+                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   texture->getImage(),
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   std::vector<VkImageBlit> {blit_info});
+        
+            barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            m_command_manager.IssuePipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                                   std::vector<VkImageMemoryBarrier> {barrier});
+            if (mip_width > 1)
+                mip_width /= 2;
+            if (mip_height > 1)
+                mip_height /= 2;     
+        }
+
+        // the last miplevel(miplevels - 1) change to shader_read
+        barrier.subresourceRange.baseMipLevel = mipmap_levels - 1;
+        barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout                     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask                 = VK_ACCESS_SHADER_READ_BIT;
+
+        m_command_manager.IssuePipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                               std::vector<VkImageMemoryBarrier> {barrier});
+        
+        texture->m_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        m_command_manager.Submit();
+    }
+
+
 }
 

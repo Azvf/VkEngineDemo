@@ -39,12 +39,30 @@ namespace Chandelier
         return byte_size;
     }
 
-    Texture::~Texture()
-    {
+    Texture::~Texture() { UnInit(); }
+
+    void Texture::UnInit() {
+        auto device = m_context->getDevice();
+        if (m_view.has_value())
+        {
+            vkDestroyImageView(device, m_view.value(), nullptr);
+        }
+
+        vkDestroyImage(device, m_image, nullptr);
+        vkFreeMemory(device, m_device_memory, nullptr);
+
         if (m_buffer && m_buffer->IsMapped())
         {
             m_buffer->unmap();
         }
+        m_buffer = nullptr;
+
+        if (m_data)
+        {
+            free((void*)m_data);
+        }
+
+        m_data = nullptr;
     }
 
     void Texture::EnsureImageView()
@@ -159,7 +177,8 @@ namespace Chandelier
         image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
         image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         image_info.usage         = m_usage;
-        image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        image_info.samples =
+            (m_is_attachment_texture && m_use_msaa) ? m_context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
         image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
 
         VULKAN_API_CALL(vkCreateImage(device, &image_info, nullptr, &m_image));
@@ -188,13 +207,35 @@ namespace Chandelier
         view_info.format                          = m_format;
         view_info.subresourceRange.aspectMask     = aspect_flags;
         view_info.subresourceRange.baseMipLevel   = 0;
-        view_info.subresourceRange.levelCount     = m_mip_levels;
+        view_info.subresourceRange.levelCount     = image_info.mipLevels;
         view_info.subresourceRange.baseArrayLayer = 0;
         view_info.subresourceRange.layerCount     = m_layers;
 
         VULKAN_API_CALL(vkCreateImageView(device, &view_info, nullptr, &view));
 
         m_view.emplace(view);
+    }
+
+    void Texture::InitAttachment(std::shared_ptr<VKContext> context,
+                                 int                        width,
+                                 int                        height,
+                                 VkFormat                   format,
+                                 VkImageUsageFlags          usage,
+                                 bool                       use_msaa)
+    {
+        m_is_attachment_texture = true;
+        m_use_msaa              = use_msaa;
+        VkClearColorValue        color;
+        VkClearDepthStencilValue depthStencil;
+        if (format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+        {
+            m_clear_value.emplace(VkClearValue({1.0, 0.0}));
+        }
+        else
+        {
+            m_clear_value.emplace(VkClearValue({0.0f, 0.0f, 0.0f, 1.0f}));
+        }
+        InitTex2D(context, width, height, 1, 1, format, usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
     void Texture::InitTex2D(std::shared_ptr<VKContext> context,
@@ -301,6 +342,8 @@ namespace Chandelier
         staging_buffer->Flush();
         staging_buffer->unmap();
 
+        m_data = data;
+
         m_context->CopyBufferToTexture(staging_buffer.get(), this);
 
         m_context->GetCommandManager().Submit();
@@ -322,8 +365,8 @@ namespace Chandelier
         size_t offset = {};
         for (auto& texture : textures)
         {
-            uint8_t* data = texture->Data();
-            size_t   size = texture->GetLayerByteSize();
+            const uint8_t* data = texture->Data();
+            size_t         size = texture->GetLayerByteSize();
 
             staging_buffer->Update(data, size, 0, offset);
             
@@ -366,6 +409,8 @@ namespace Chandelier
         return aspect_flags;
     }
 
+    std::optional<VkClearValue> Texture::GetClearValue() { return m_clear_value; }
+
     size_t Texture::GetLayerByteSize()
     {
         /**
@@ -376,12 +421,20 @@ namespace Chandelier
         return data_size;
     }
 
-    uint8_t* Texture::Data()
+    const uint8_t* Texture::Data()
     {
+        /**
+         * @info: attachment texture needs to stage gpu memory to cpu, normal texture just return the memory from cpu
+         */
+        if (!m_is_attachment_texture)
+        {
+            return m_data;
+        }
+
         if (!m_buffer)
         {
             m_buffer = std::make_shared<Buffer>();
-
+        
             VkDeviceSize data_size = GetLayerByteSize() * m_layers;
             m_buffer->Allocate(m_context,
                                data_size,
@@ -389,7 +442,7 @@ namespace Chandelier
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                VK_DESCRIPTOR_TYPE_MAX_ENUM);
         }
-
+        
         uint8_t* data = nullptr;
         
         /**
@@ -406,7 +459,7 @@ namespace Chandelier
         m_context->GetCommandManager().Submit();
         
         data = m_buffer->map();
-
+        
         return data;
     }
 
