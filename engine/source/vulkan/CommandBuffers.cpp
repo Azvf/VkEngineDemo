@@ -75,8 +75,8 @@ namespace Chandelier
     }
 
     void CommandBufferManager::IssuePipelineBarrier(const VkPipelineStageFlags        src_stages,
-                                              const VkPipelineStageFlags        dst_stages,
-                                              std::vector<VkImageMemoryBarrier> image_memory_barriers)
+                                                    const VkPipelineStageFlags        dst_stages,
+                                                    std::vector<VkImageMemoryBarrier> image_memory_barriers)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
         vkCmdPipelineBarrier(command_buffer.Handle(),
@@ -189,13 +189,19 @@ namespace Chandelier
         render_pass_info.framebuffer           = m_active_framebuffer->handle;
         render_pass_info.renderArea            = m_active_framebuffer->render_area;
         
-        std::array<VkClearValue, Attachment_Max_Count> clear_value = {};
-        clear_value[Color_Attachment].color               = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        clear_value[DepthStencil_Attachment].depthStencil = {1.0f, 0};
-        clear_value[UI_Attachment].color                  = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        std::vector<VkClearValue> clear_values = {};
+        for (auto& attachment : framebuffer.attachments)
+        {
+            auto clear_value = attachment->GetClearValue();
+            if (clear_value.has_value())
+            {
+                clear_values.push_back(clear_value.value());
+            }
+        }
+        assert(clear_values.size() == framebuffer.attachments.size());
 
-        render_pass_info.clearValueCount = clear_value.size();
-        render_pass_info.pClearValues    = clear_value.data();
+        render_pass_info.clearValueCount = clear_values.size();
+        render_pass_info.pClearValues    = clear_values.data();
 
         auto& graphics_command_buffer = GetCommandBuffer(Graphics);
         vkCmdBeginRenderPass(graphics_command_buffer.Handle(), &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -301,10 +307,10 @@ namespace Chandelier
     }
 
     void CommandBufferManager::Blit(VkImage                         src_image,
-                              VkImageLayout                   src_layout,
-                              VkImage                         dst_image,
-                              VkImageLayout                   dst_layout,
-                              const std::vector<VkImageBlit>& regions)
+                                    VkImageLayout                   src_layout,
+                                    VkImage                         dst_image,
+                                    VkImageLayout                   dst_layout,
+                                    const std::vector<VkImageBlit>& regions)
     {
         CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
         vkCmdBlitImage(command_buffer.Handle(),
@@ -319,9 +325,9 @@ namespace Chandelier
     }
 
     void CommandBufferManager::Bind(VkBufferUsageFlags        usage,
-                              std::vector<VkBuffer>     buffers,
-                              std::vector<VkDeviceSize> offsets,
-                              uint32_t                  binding_point)
+                                    std::vector<VkBuffer>     buffers,
+                                    std::vector<VkDeviceSize> offsets,
+                                    uint32_t                  binding_point)
     {
         assert(!buffers.empty());
         assert(buffers.size() == offsets.size());
@@ -329,7 +335,8 @@ namespace Chandelier
         if (usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
         {
             auto& command_buffer = GetCommandBuffer(Graphics);
-            vkCmdBindVertexBuffers(command_buffer.Handle(), binding_point, buffers.size(), buffers.data(), offsets.data());
+            vkCmdBindVertexBuffers(
+                command_buffer.Handle(), binding_point, buffers.size(), buffers.data(), offsets.data());
         }
         else if (usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         {
@@ -386,8 +393,8 @@ namespace Chandelier
     }
 
     void CommandBufferManager::PipelineBarrier(const VkPipelineStageFlags        src_stage,
-                                         const VkPipelineStageFlags        dst_stage,
-                                         std::vector<VkImageMemoryBarrier> barriers)
+                                               const VkPipelineStageFlags        dst_stage,
+                                               std::vector<VkImageMemoryBarrier> barriers)
     {
         auto& command_buffer = GetCommandBuffer(DataTransferCompute);
         vkCmdPipelineBarrier(command_buffer.Handle(),

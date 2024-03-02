@@ -28,8 +28,6 @@ namespace Chandelier
 
     void Engine::Run()
     {
-        m_render_system->PreRenderSetup();
-
         while (!m_window_system->ShouldClose())
         {
             if (!m_window_system->IsIconified())

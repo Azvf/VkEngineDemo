@@ -92,6 +92,9 @@ namespace Chandelier
                 state.extend_x = static_cast<GPUSamplerExtendMode>(extend_x);
                 for (int filtering = 0; filtering < GPU_SAMPLER_FILTERING_TYPES_COUNT; filtering++)
                 {
+                    /**
+                     * @todo: is the enum conversion valid? 
+                     */
                     state.filtering = static_cast<GPUSamplerFiltering>(filtering);
                     m_sampler_cache[extend_yz][extend_x][filtering].Initialize(context, state);
                 }

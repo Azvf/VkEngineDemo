@@ -84,6 +84,11 @@ namespace Chandelier
         m_swapChainImages.resize(imageCount);
         VULKAN_API_CALL(vkGetSwapchainImagesKHR(device, m_handle, &imageCount, m_swapChainImages.data()));
 
+        for (int i = 0; i < m_swapChainImages.size(); i++)
+        {
+            TransferSwapchainImage(i, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        }
+
         // m_semaphore = std::make_unique<TimelineSemaphore>();
         // m_semaphore->Init(m_context);
 
@@ -166,17 +171,12 @@ namespace Chandelier
             resized = true;
             return;
         }
-        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-        {
-            Recreate();
-            resized = true;
-            return;
-        }
-        else
+        else if (result != VK_SUBOPTIMAL_KHR)
         {
             assert(0);
             resized = false;
             throw std::runtime_error("swapchain error!");
+            return;
         }
     }
 
