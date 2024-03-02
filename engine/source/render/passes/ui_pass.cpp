@@ -6,6 +6,7 @@
 
 #include "runtime/core/base/exception.h"
 #include "UI/window_system.h"
+#include "main_pass.h"
 
 #include "VkContext.h"
 #include "CommandBuffers.h"
@@ -28,9 +29,16 @@ namespace Chandelier {
 
 	UIPass::~UIPass() { UnInit(); }
 
+    void UIPass::Recreate() { 
+        ResetImGuiPipelineContext();
+        SetupImGuiPipelineContext();
+    }
+
     void UIPass::SetupImGuiPipelineContext()
     {
         UI_PASS_SETUP_CONTEXT
+        
+        bool enable_msaa = m_pass_info->main_pass_uniform_buffer->config.anti_aliasing == Enable_MSAA;
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -59,11 +67,13 @@ namespace Chandelier {
         init_info.MinImageCount             = static_cast<uint32_t>(swapchain.getImageCount());
         init_info.ImageCount                = static_cast<uint32_t>(swapchain.getImageCount());
         init_info.CheckVkResultFn           = check_vk_result;
-        init_info.Subpass                   = Subpass_UI_Pass;
+        init_info.Subpass                   = UI_Pass;
+        init_info.MSAASamples = (enable_msaa) ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
         /**
-        * @info: not using m_render_pipeline in UI pass 
-        * cause ImGui_ImplVulkan_Init has created them for us and we are drawing as main pass's subpass
-        */
+         * @info: not using m_render_pipeline in UI pass 
+         * cause ImGui_ImplVulkan_Init has created them for us and we are drawing as main pass's subpass
+         */
+        assert(m_pass_info->render_pass);
         ImGui_ImplVulkan_Init(&init_info, *m_pass_info->render_pass);
 
         ImGui_ImplVulkan_CreateFontsTexture();
@@ -230,7 +240,63 @@ namespace Chandelier {
 	void UIPass::PreDrawSetup() {
 
 	}
+
+    void UIPass::ImGuiSetCheckBox(const char* label, int32_t* v) { 
+        bool checkbox_set = *v;
+        ImGui::Checkbox(label, &checkbox_set);
+        *v = checkbox_set;
+    }
 	
+    void UIPass::ImGuiDraw() {
+        auto& main_pass_ubo = m_pass_info->main_pass_uniform_buffer;
+
+        #if 1
+        struct FuncHolder
+        {
+            static bool ItemGetter(void* data, int idx, const char** out_str)
+            {
+                *out_str = ((std::string*)data)[idx].c_str();
+                return true;
+            }
+        };
+
+		ImGui::Begin("Chandelier Setting Menu");
+        
+		{
+            int& display_texture_index = main_pass_ubo->config.display_texture;
+            std::vector<std::string> texture_string_names {
+                "None", "BaseColor", "Normal", "Height", "Metallic", "Roughness", "UV"};
+
+            ImGui::Combo("Display Map",
+                         &display_texture_index,
+                         &FuncHolder::ItemGetter,
+                         texture_string_names.data(),
+                         texture_string_names.size());
+		}
+
+        {
+            int& anti_aliasing = main_pass_ubo->config.anti_aliasing;
+            std::vector<std::string> aa_string_names {"None", "MSAA x8"};
+            ImGui::Combo("Anti_Aliasing",
+                         &anti_aliasing,
+                         &FuncHolder::ItemGetter,
+                         aa_string_names.data(),
+                         aa_string_names.size());
+        }
+
+        ImGuiSetCheckBox("show skybox", &main_pass_ubo->config.show_skybox);
+        ImGuiSetCheckBox("rotating", &main_pass_ubo->config.rotating);
+        ImGuiSetCheckBox("gamma correction", &main_pass_ubo->config.use_gamma_correction);
+        ImGuiSetCheckBox("tone mapping", &main_pass_ubo->config.tone_mapping);
+        
+		ImGui::End();
+
+        #else
+        bool open_demo_window = true;
+        ImGui::ShowDemoWindow(&open_demo_window);
+        #endif
+    }
+
 	void UIPass::Draw()
     {
         UI_PASS_SETUP_CONTEXT
@@ -239,9 +305,7 @@ namespace Chandelier {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // todo: draw imgui windows
-        bool open_demo_window = true;
-        ImGui::ShowDemoWindow(&open_demo_window);
+        ImGuiDraw();
 
         command_manager.RenderImGui();
 

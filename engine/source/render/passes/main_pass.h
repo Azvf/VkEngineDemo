@@ -2,28 +2,60 @@
 
 #include <glm/mat4x4.hpp>
 #include "base/render_pass.h"
+#include "light/light.h"
 
 namespace Chandelier
 {
     class Buffer;
 
-    struct MainPassUniformBuffer
+    /**
+     * @todo: refactor camera class and move it there
+     */
+    struct CameraUniformBuffer
     {
-        glm::mat4 model_view;
+        glm::mat4 view;
         glm::mat4 projection;
+
+        glm::vec4 position;
+        glm::vec4 position_padding_0;
+        glm::vec4 position_padding_1;
+        glm::vec4 position_padding_2;
     };
 
-    enum AntiAliasing : uint8_t
+    struct ConfigUniformBuffer
     {
-        None_AA     = 0,
-        Enable_MSAA = 1,
-        Enable_FXAA = 2,
+        int32_t anti_aliasing;
+        int32_t show_skybox;
+        int32_t rotating;
+        int32_t use_gamma_correction;
+        int32_t tone_mapping;
+        int32_t display_texture;
+
+        glm::vec2 padding_0;
+
+        int32_t placehodler_setting_0;
+        int32_t placehodler_setting_1;
+        int32_t placehodler_setting_2;
+        int32_t placehodler_setting_3;
+
+        glm::vec4 padding_1;
+    };
+
+    /**
+     * @info: all structs are 64 bytes aligned
+     */
+    struct MainPassUniformBuffer
+    {
+        ConfigUniformBuffer config;
+        CameraUniformBuffer camera;
+        Lights              lights;
     };
 
     struct MainRenderPassInitInfo : public BaseRenderPassInitInfo
     {
         virtual ~MainRenderPassInitInfo() = default;
-        AntiAliasing aa;
+
+        std::shared_ptr<MainPassUniformBuffer> memory_uniform_buffer;
     };
 
     class MainRenderPass : public RenderPass
@@ -36,14 +68,14 @@ namespace Chandelier
         virtual void Initialize(std::shared_ptr<BaseRenderPassInitInfo> info) override;
         virtual void UnInit() override;
 
+        virtual void Recreate() override;
+
         virtual const VkRenderPass* GetRenderPass() override;
 
         virtual void PreDrawSetup() override;
         virtual void Draw() override;
         virtual void PostDrawCallback() override;
 
-        void Resize();
-        
         void UpdateUniformBuffer(const MainPassUniformBuffer& uniform_buffer);
 
         void ForwardDraw(std::vector<std::shared_ptr<RenderPass>> subpasses);
@@ -82,7 +114,9 @@ namespace Chandelier
          */
         std::vector<std::shared_ptr<Texture>> m_textures;
         std::vector<std::shared_ptr<Mesh>>    m_meshes;
-        
+        std::shared_ptr<Texture>              m_skybox_irradiance;
+        std::shared_ptr<Mesh> m_screen_mesh;
+
         /**
          * @todo: optimize use push constants
          */

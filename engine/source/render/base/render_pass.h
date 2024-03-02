@@ -8,22 +8,32 @@ namespace Chandelier
 {
     class GlobalRenderResource;
     class DescriptorTracker;
+    class MainPassUniformBuffer;
 
     enum eAttachment : uint8_t
     {
         Color_Attachment        = 0,
         DepthStencil_Attachment = 1,
-        Skybox_Attachment       = 2,
-        UI_Attachment           = 3,
-        Attachment_Max_Count
+        // Skybox_Attachment       = 2,
+        // UI_Attachment           = 3,
+        // Anti_Aliasing_Attachment= 4,
+        Attachment_Max_Count,
+        Resolve_Attachment = Attachment_Max_Count
     };
 
-    enum RenderPassSubpass : uint8_t
+    enum eRenderPass : uint8_t
     {
-        Subpass_Base_Pass   = 0,
-        Subpass_Skybox_Pass = 1,
-        Subpass_UI_Pass     = 2,
-        Subpass_Count,
+        Main_Pass   = 0,
+        Skybox_Pass = 1,
+        UI_Pass     = 2,
+        Render_Pass_Count,
+    };
+    
+    enum eAntiAliasing : uint8_t
+    {
+        None_AA     = 0,
+        Enable_MSAA = 1,
+        Enable_FXAA = 2,
     };
 
     struct RenderPassContext
@@ -51,17 +61,22 @@ namespace Chandelier
         virtual void Initialize(std::shared_ptr<BaseRenderPassInitInfo> info) = 0;
         virtual void UnInit() = 0;
 
+        virtual void Recreate() = 0;
+
         virtual const VkRenderPass* GetRenderPass() = 0;
 
         virtual void PreDrawSetup() = 0;
         virtual void Draw() = 0;
         virtual void PostDrawCallback() = 0;
 
+        virtual std::shared_ptr<Texture> GetAttachment(uint32_t framebuffer_index, uint32_t attachment_index)
+        {
+            return m_framebuffers.at(framebuffer_index).attachments.at(attachment_index);
+        }
+
         std::shared_ptr<GlobalRenderResource> m_global_render_resource;
 
         std::vector<Framebuffer> m_framebuffers;
-        
-        RenderPassContext m_context;
     };
 
 } // namespace Chandelier

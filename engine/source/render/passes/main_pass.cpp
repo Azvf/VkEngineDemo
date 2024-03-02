@@ -3,6 +3,9 @@
 #include "resource/asset_manager/asset_manager.h"
 #include "runtime/core/base/exception.h"
 #include "runtime/framework/global/global_context.h"
+#include "render/base/common_vao_defines.h"
+#include "render/base/render_pass_runner.h"
+#include "precompute/brdf_lut.h"
 
 #include "Buffer.h"
 #include "Descriptor.h"
@@ -22,7 +25,7 @@ namespace Chandelier
 
     MainRenderPass::~MainRenderPass() { UnInit(); }
 
-    void MainRenderPass::Resize()
+    void MainRenderPass::Recreate()
     {
         MAIN_PASS_SETUP_CONTEXT
 
@@ -32,10 +35,12 @@ namespace Chandelier
         m_pass_info->height = extent.height;
 
         ResetFramebuffers();
+        ResetPipeline();
         ResetAttachments();
 
         SetupAttachments();
         SyncDescriptorSets();
+        SetupPipeline();
         SetupFramebuffers();
     }
 
@@ -58,10 +63,30 @@ namespace Chandelier
         /**
          * @todo: assets managed through asset manager
          */
-        m_meshes.push_back(LoadObjModel(context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/Boat/Boat.obj"));
-        m_textures.push_back(LoadTexture(context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/Boat/texture/bench 1_Base_color.png"));
-        m_textures.push_back(LoadTexture(context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/Boat/texture/bench 1_Normal.png"));
+        std::string asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/gun/";
+        m_meshes.push_back(LoadStaticMesh(context, asset_dir + "1.obj"));
+        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_BaseColor.png", SRGB_Color_Space));
+        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Normal.png", Linear_Color_Space));
+        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Height.png", Linear_Color_Space));
+        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Metallic.png", Linear_Color_Space));
+        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Roughness.png", Linear_Color_Space));
+        m_screen_mesh = Mesh::load(context, Has_UV, ScreenVertices.data(), ScreenVertices.size(), nullptr, 0);
         
+        std::array<std::shared_ptr<Texture>, 6> skybox_irradiance_faces;
+        skybox_irradiance_faces[0] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_X+.hdr", 4);
+        skybox_irradiance_faces[1] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_X-.hdr", 4);
+        skybox_irradiance_faces[2] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Z+.hdr", 4);
+        skybox_irradiance_faces[3] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Z-.hdr", 4);
+        skybox_irradiance_faces[4] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Y+.hdr", 4);
+        skybox_irradiance_faces[5] = LoadTextureHDR(
+            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Y-.hdr", 4);
+        m_skybox_irradiance = LoadSkybox(context, skybox_irradiance_faces, 4);
+
         SetupUniformBuffer();
         SetupDescriptorSets();
         SetupAttachments();
@@ -94,7 +119,8 @@ namespace Chandelier
 
     void MainRenderPass::SetupAttachments()
     {
-        auto&    context = m_pass_info->render_context.vk_context;
+        MAIN_PASS_SETUP_CONTEXT
+
         uint32_t width = m_pass_info->width, height = m_pass_info->height;
         size_t   frames_in_flight = context->GetSwapchain().getImageCount();
 
@@ -113,47 +139,24 @@ namespace Chandelier
 
             auto& color_attachment         = m_framebuffers[i].attachments[Color_Attachment];
             auto& depth_stencil_attachment = m_framebuffers[i].attachments[DepthStencil_Attachment];
-            auto& skybox_attachment        = m_framebuffers[i].attachments[Skybox_Attachment];
-            auto& ui_attachment            = m_framebuffers[i].attachments[UI_Attachment];
 
-            color_attachment->InitTex2D(context,
-                                        width,
-                                        height,
-                                        1,
-                                        1,
-                                        VK_FORMAT_R16G16B16A16_SFLOAT,
-                                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            bool enable_msaa = m_pass_info->memory_uniform_buffer->config.anti_aliasing == Enable_MSAA;
 
-            depth_stencil_attachment->InitTex2D(context,
-                                                width,
-                                                height,
-                                                1,
-                                                1,
-                                                VK_FORMAT_D32_SFLOAT_S8_UINT,
-                                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                                                    VK_IMAGE_USAGE_SAMPLED_BIT,
-                                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            color_attachment->InitAttachment(context,
+                                             width,
+                                             height,
+                                             swapchain.getImageFormat(),
+                                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                             enable_msaa);
 
-            skybox_attachment->InitTex2D(context,
-                                         width,
-                                         height,
-                                         1,
-                                         1,
-                                         VK_FORMAT_R16G16B16A16_SFLOAT,
-                                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-            ui_attachment->InitTex2D(context,
-                                     width,
-                                     height,
-                                     1,
-                                     1,
-                                     VK_FORMAT_R16G16B16A16_SFLOAT,
-                                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            depth_stencil_attachment->InitAttachment(context,
+                                                     width,
+                                                     height,
+                                                     VK_FORMAT_D32_SFLOAT_S8_UINT,
+                                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                                                         VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                     enable_msaa);
         }
     }
 
@@ -170,13 +173,8 @@ namespace Chandelier
 
     void MainRenderPass::SetupDescriptorSets()
     {
-        auto& context = m_pass_info->render_context.vk_context;
-
-        // for (auto& desc_tracker : m_desc_array)
-        // {
-        //     desc_tracker = std::make_shared<DescriptorTracker>(context);
-        // }
-
+        MAIN_PASS_SETUP_CONTEXT
+        
         m_desc_tracker = std::make_shared<DescriptorTracker>(context);
         SyncDescriptorSets();
     }
@@ -187,30 +185,40 @@ namespace Chandelier
 
         auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
         
-        m_desc_tracker->Bind(m_ubo.get(), Location(0), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Bind(m_textures[0].get(), &default_sampler, Location(1), VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Bind(m_textures[1].get(), &default_sampler, Location(2), VK_SHADER_STAGE_FRAGMENT_BIT);
+        size_t desc_loc = 0;
+        m_desc_tracker->Bind(m_ubo.get(), Location(desc_loc++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        
+        for (auto&texture : m_textures)
+        {
+            m_desc_tracker->Bind(texture.get(), &default_sampler, Location(desc_loc++), VK_SHADER_STAGE_FRAGMENT_BIT);
+        }
+
+        auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
+        m_desc_tracker->Bind(m_skybox_irradiance.get(), &cubemap_sampler, Location(desc_loc++), VK_SHADER_STAGE_FRAGMENT_BIT);
+
         m_desc_tracker->Sync();
     }
 
     void MainRenderPass::ResetDescriptorSets()
     {
-        // for (auto& desc_tracker : m_desc_array)
-        // {
-        //     desc_tracker = nullptr;
-        // }
         m_desc_tracker = nullptr;
     }
 
     void MainRenderPass::SetupPipeline()
     {
-        auto& context = m_pass_info->render_context.vk_context;
+        MAIN_PASS_SETUP_CONTEXT
 
-        VkAttachmentDescription attachment_descs[Attachment_Max_Count] = {};
+        bool use_resolve = false;
+        bool enable_msaa = m_pass_info->memory_uniform_buffer->config.anti_aliasing == Enable_MSAA;
+        use_resolve |= enable_msaa;
+
+        int attach_desc_count = use_resolve ? Attachment_Max_Count + 1 : Attachment_Max_Count;
+        std::vector<VkAttachmentDescription> attachment_descs(attach_desc_count);
         {
             // color
-            attachment_descs[Color_Attachment].format         = VK_FORMAT_R16G16B16A16_SFLOAT;
-            attachment_descs[Color_Attachment].samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_descs[Color_Attachment].format         = swapchain.getImageFormat();
+            attachment_descs[Color_Attachment].samples =
+                enable_msaa ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
             attachment_descs[Color_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachment_descs[Color_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_descs[Color_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -220,7 +228,8 @@ namespace Chandelier
 
             // depth
             attachment_descs[DepthStencil_Attachment].format         = VK_FORMAT_D32_SFLOAT_S8_UINT;
-            attachment_descs[DepthStencil_Attachment].samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_descs[DepthStencil_Attachment].samples =
+                enable_msaa ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
             attachment_descs[DepthStencil_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachment_descs[DepthStencil_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_descs[DepthStencil_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -228,62 +237,57 @@ namespace Chandelier
             attachment_descs[DepthStencil_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_descs[DepthStencil_Attachment].finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-            // color
-            attachment_descs[Skybox_Attachment].format         = VK_FORMAT_R16G16B16A16_SFLOAT;
-            attachment_descs[Skybox_Attachment].samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_descs[Skybox_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachment_descs[Skybox_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_descs[Skybox_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_descs[Skybox_Attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_descs[Skybox_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment_descs[Skybox_Attachment].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-            // ui
-            attachment_descs[UI_Attachment].format         = VK_FORMAT_R16G16B16A16_SFLOAT;
-            attachment_descs[UI_Attachment].samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_descs[UI_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachment_descs[UI_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_descs[UI_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_descs[UI_Attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_descs[UI_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment_descs[UI_Attachment].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            if (use_resolve)
+            {
+                attachment_descs[Resolve_Attachment].format         = swapchain.getImageFormat();
+                attachment_descs[Resolve_Attachment].samples        = VK_SAMPLE_COUNT_1_BIT;
+                attachment_descs[Resolve_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                attachment_descs[Resolve_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+                attachment_descs[Resolve_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                attachment_descs[Resolve_Attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+                attachment_descs[Resolve_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+                attachment_descs[Resolve_Attachment].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            }
         }
         
-        std::vector<VkSubpassDescription> subpasses(Subpass_Count);
+        std::vector<VkSubpassDescription> subpasses(Render_Pass_Count);
         
         VkAttachmentReference color_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        VkAttachmentReference depth_attach_ref {DepthStencil_Attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-        subpasses[Subpass_Base_Pass]                         = {};
-        subpasses[Subpass_Base_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[Subpass_Base_Pass].colorAttachmentCount    = 1;
-        subpasses[Subpass_Base_Pass].pColorAttachments       = &color_attach_ref;
-        subpasses[Subpass_Base_Pass].pDepthStencilAttachment = &depth_attach_ref;
+        VkAttachmentReference depth_attach_ref {DepthStencil_Attachment,VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        VkAttachmentReference resolve_attach_ref {Resolve_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        subpasses[Main_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[Main_Pass].colorAttachmentCount    = 1;
+        subpasses[Main_Pass].pColorAttachments       = &color_attach_ref;
+        subpasses[Main_Pass].pDepthStencilAttachment = &depth_attach_ref;
+        if (use_resolve)
+            subpasses[Main_Pass].pResolveAttachments = &resolve_attach_ref;
         
-        // VkAttachmentReference skybox_attach_ref {Skybox_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
         VkAttachmentReference skybox_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        subpasses[Subpass_Skybox_Pass]                         = {};
-        subpasses[Subpass_Skybox_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[Subpass_Skybox_Pass].colorAttachmentCount    = 1;
-        subpasses[Subpass_Skybox_Pass].pColorAttachments       = &skybox_attach_ref;
-        subpasses[Subpass_Skybox_Pass].pDepthStencilAttachment = &depth_attach_ref;
-        
+        subpasses[Skybox_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[Skybox_Pass].colorAttachmentCount    = 1;
+        subpasses[Skybox_Pass].pColorAttachments       = &skybox_attach_ref;
+        subpasses[Skybox_Pass].pDepthStencilAttachment = &depth_attach_ref;
+        if (use_resolve)
+            subpasses[Skybox_Pass].pResolveAttachments = &resolve_attach_ref;
+
         /**
          * @todo: don't know how i wanna blend ui attachment and color attachment...just write ui pass on color attachment for now
          * maybe follow the piccolo solution, use ui pass as input attachment and run a combine ui pass
          */
         VkAttachmentReference ui_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        subpasses[Subpass_UI_Pass]                         = {};
-        subpasses[Subpass_UI_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[Subpass_UI_Pass].colorAttachmentCount    = 1;
-        subpasses[Subpass_UI_Pass].pColorAttachments       = &ui_attach_ref;
+        subpasses[UI_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpasses[UI_Pass].colorAttachmentCount    = 1;
+        subpasses[UI_Pass].pColorAttachments       = &ui_attach_ref;
+        if (use_resolve)
+            subpasses[UI_Pass].pResolveAttachments = &resolve_attach_ref;
 
         /**
          * @todo: optimize the dependency setting, just to make it work for now 
          */
         std::vector<VkSubpassDependency> dependencies(2);
         dependencies[0] = {};
-        dependencies[0].srcSubpass = Subpass_Base_Pass;
-        dependencies[0].dstSubpass = Subpass_Skybox_Pass;
+        dependencies[0].srcSubpass = Main_Pass;
+        dependencies[0].dstSubpass = Skybox_Pass;
         dependencies[0].srcStageMask =
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependencies[0].dstStageMask =
@@ -293,8 +297,8 @@ namespace Chandelier
         dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
         dependencies[1]            = {};
-        dependencies[1].srcSubpass = Subpass_Skybox_Pass;
-        dependencies[1].dstSubpass = Subpass_UI_Pass;
+        dependencies[1].srcSubpass = Skybox_Pass;
+        dependencies[1].dstSubpass = UI_Pass;
         dependencies[1].srcStageMask =
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependencies[1].dstStageMask =
@@ -305,8 +309,8 @@ namespace Chandelier
 
         VkRenderPassCreateInfo render_pass_info = {};
         render_pass_info.sType                  = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        render_pass_info.attachmentCount        = Attachment_Max_Count;
-        render_pass_info.pAttachments           = attachment_descs;
+        render_pass_info.attachmentCount        = attachment_descs.size();
+        render_pass_info.pAttachments           = attachment_descs.data();
         render_pass_info.subpassCount           = subpasses.size();
         render_pass_info.pSubpasses             = subpasses.data();
         render_pass_info.dependencyCount        = dependencies.size();
@@ -386,8 +390,7 @@ namespace Chandelier
 
         VkPipelineMultisampleStateCreateInfo multisampling = {};
         multisampling.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.sampleShadingEnable  = VK_FALSE;
-        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        multisampling.rasterizationSamples = (enable_msaa) ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
 
         VkPipelineColorBlendAttachmentState color_blend_attachment = {};
         color_blend_attachment.colorWriteMask =
@@ -435,7 +438,7 @@ namespace Chandelier
         pipeline_info.pDynamicState                = &dynamic_state_create_info;
         pipeline_info.layout                       = m_render_pipeline.layout;
         pipeline_info.renderPass                   = m_render_pipeline.render_pass;
-        pipeline_info.subpass                      = Subpass_Base_Pass;
+        pipeline_info.subpass                      = Main_Pass;
         pipeline_info.basePipelineHandle           = VK_NULL_HANDLE;
 
         VkPipelineDepthStencilStateCreateInfo depth_stencil = {};
@@ -479,14 +482,19 @@ namespace Chandelier
 
             auto& color_attachment         = m_framebuffers[i].attachments[Color_Attachment];
             auto& depth_stencil_attachment = m_framebuffers[i].attachments[DepthStencil_Attachment];
-            auto& skybox_attachment        = m_framebuffers[i].attachments[Skybox_Attachment];
-            auto& ui_attachment            = m_framebuffers[i].attachments[UI_Attachment];
-
-            std::vector<VkImageView> attachments = {color_attachment->getView(),
-                                                    depth_stencil_attachment->getView(),
-                                                    skybox_attachment->getView(),
-                                                    ui_attachment->getView()};
-
+            
+            bool enable_msaa = m_pass_info->memory_uniform_buffer->config.anti_aliasing == Enable_MSAA;
+            
+            std::vector<VkImageView> attachments;
+            if (enable_msaa)
+            {
+                attachments = {color_attachment->getView(), depth_stencil_attachment->getView(), swapchain.getImageView(i)};
+            }
+            else
+            {
+                attachments = {swapchain.getImageView(i), depth_stencil_attachment->getView()};
+            }
+            
             VkFramebufferCreateInfo framebuffer_create_info = {};
             framebuffer_create_info.sType                   = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             framebuffer_create_info.renderPass              = m_framebuffers[i].render_pass;
@@ -514,9 +522,24 @@ namespace Chandelier
         m_framebuffers.clear();
     }
 
-    void MainRenderPass::PreDrawSetup()
-    {
-
+    void MainRenderPass::PreDrawSetup() {
+        MAIN_PASS_SETUP_CONTEXT 
+        
+        // @todo: file check
+        RenderPassRunner runner;
+        
+        auto brdflut_init_info = std::make_shared<BRDFLutInitInfo>();
+        brdflut_init_info->width          = 512;
+        brdflut_init_info->height         = 512;
+        brdflut_init_info->render_context = m_pass_info->render_context;
+        
+        auto brdf_lut_pass = std::make_shared<BRDFLutPass>();
+        brdf_lut_pass->Initialize(brdflut_init_info);
+        runner.Initialize(brdf_lut_pass);
+        
+        runner.Run();
+        
+        runner.Save("brdf_lut.png");
     }
 
     void MainRenderPass::PostDrawCallback()
@@ -540,13 +563,16 @@ namespace Chandelier
             
             auto                      vertex_buffer            = mesh->GetBuffer(Vertex_Buffer);
             auto                      vertex_count             = mesh->getVertexCount();
-            std::vector<VkBuffer>     bind_vertex_buffers      = {vertex_buffer, vertex_buffer, vertex_buffer};
-            std::vector<VkDeviceSize> bind_vertex_attr_offsets = {
-                0, vertex_count * sizeof(glm::vec3), vertex_count * sizeof(glm::vec3) * 2};
+            std::vector<VkBuffer>     bind_vertex_buffers      = {vertex_buffer, vertex_buffer, vertex_buffer, vertex_buffer};
+            std::vector<VkDeviceSize> bind_vertex_attr_offsets = {0,
+                                                                  vertex_count * sizeof(glm::vec3),
+                                                                  vertex_count * sizeof(glm::vec3) * 2,
+                                                                  vertex_count * sizeof(glm::vec3) * 3};
             command_manager.Bind(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bind_vertex_buffers, bind_vertex_attr_offsets);
             
             command_manager.DrawIndexed(mesh.get());
         }
+
         PostDrawCallback();
     }
 
@@ -568,7 +594,7 @@ namespace Chandelier
         command_manager.SetScissor(VkRect2D {{0, 0}, {width, height}});
 
         {
-            // this->Draw();
+            this->Draw();
 
             for (auto& subpass : subpasses)
             {

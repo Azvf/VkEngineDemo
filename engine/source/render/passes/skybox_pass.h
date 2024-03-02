@@ -18,6 +18,7 @@ namespace Chandelier
         virtual ~SkyboxPassInitInfo() = default;
 
         const VkRenderPass* render_pass = nullptr;
+        std::shared_ptr<MainPassUniformBuffer> main_pass_uniform_buffer;
     };
 
     class SkyboxPass : public RenderPass
@@ -29,6 +30,8 @@ namespace Chandelier
     public:
         virtual void Initialize(std::shared_ptr<BaseRenderPassInitInfo> info) override;
         virtual void UnInit() override;
+        
+        virtual void Recreate() override;
 
         virtual const VkRenderPass* GetRenderPass() override;
 

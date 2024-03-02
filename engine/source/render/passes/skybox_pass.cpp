@@ -3,6 +3,7 @@
 #include "resource/asset_manager/asset_manager.h"
 #include "runtime/core/base/exception.h"
 
+#include "main_pass.h"
 #include "VkContext.h"
 #include "Descriptor.h"
 #include "Shader.h"
@@ -39,24 +40,31 @@ namespace Chandelier
         ResetShaderResources();
     }
 
+    void SkyboxPass::Recreate() { 
+        m_render_pipeline.render_pass = *m_pass_info->render_pass;
+        assert(m_render_pipeline.render_pass);
+
+        ResetPipeline();
+        SetupPipeline();
+    }
+
     void SkyboxPass::SetupShaderResources()
     {
         SKYBOX_PASS_SETUP_CONTEXT
-        std::array<std::shared_ptr<Texture>, 6> faces;
-        faces[0] = LoadTextureHDR(
+        std::array<std::shared_ptr<Texture>, 6> skybox_faces;
+        skybox_faces[0] = LoadTextureHDR(
             context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X+.hdr", 4);
-        faces[1] = LoadTextureHDR(
+        skybox_faces[1] = LoadTextureHDR(
             context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X-.hdr", 4);
-        faces[2] = LoadTextureHDR(
+        skybox_faces[2] = LoadTextureHDR(
             context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z+.hdr", 4);
-        faces[3] = LoadTextureHDR(
+        skybox_faces[3] = LoadTextureHDR(
             context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z-.hdr", 4);
-        faces[4] = LoadTextureHDR(
+        skybox_faces[4] = LoadTextureHDR(
             context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y+.hdr", 4);
-        faces[5] = LoadTextureHDR(
+        skybox_faces[5] = LoadTextureHDR(
             context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y-.hdr", 4);
-
-        m_skybox_tex = LoadSkybox(context, faces, 4);
+        m_skybox_tex = LoadSkybox(context, skybox_faces, 4);
 
         m_ubo = std::make_shared<Buffer>();
         m_ubo->Allocate(context,
@@ -82,6 +90,7 @@ namespace Chandelier
 
     void SkyboxPass::SetupPipeline() { 
         SKYBOX_PASS_SETUP_CONTEXT
+        bool enable_msaa = m_pass_info->main_pass_uniform_buffer->config.anti_aliasing == Enable_MSAA;
  
         auto vert_shader = std::make_unique<Shader>();
         auto vert_code   = readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\skybox_vert.spv");
@@ -153,8 +162,7 @@ namespace Chandelier
 
         VkPipelineMultisampleStateCreateInfo multisampling = {};
         multisampling.sType                                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.sampleShadingEnable                  = VK_FALSE;
-        multisampling.rasterizationSamples                 = VK_SAMPLE_COUNT_1_BIT;
+        multisampling.rasterizationSamples = (enable_msaa) ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
 
         VkPipelineColorBlendAttachmentState color_blend_attachment = {};
         color_blend_attachment.colorWriteMask =
@@ -202,15 +210,15 @@ namespace Chandelier
         pipeline_info.pDynamicState                = &dynamic_state_create_info;
         pipeline_info.layout                       = m_render_pipeline.layout;
         pipeline_info.renderPass                   = m_render_pipeline.render_pass;
-        pipeline_info.subpass                      = Subpass_Skybox_Pass;
+        pipeline_info.subpass                      = Skybox_Pass;
         pipeline_info.basePipelineHandle           = VK_NULL_HANDLE;
 
         VkPipelineDepthStencilStateCreateInfo depth_stencil = {};
-        depth_stencil.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depth_stencil.depthTestEnable       = VK_TRUE;
-        depth_stencil.depthWriteEnable      = VK_TRUE;
-        depth_stencil.depthCompareOp        = VK_COMPARE_OP_LESS;
-        depth_stencil.depthBoundsTestEnable = VK_FALSE;
+        depth_stencil.sType                                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depth_stencil.depthTestEnable                       = VK_TRUE;
+        depth_stencil.depthWriteEnable                      = VK_TRUE;
+        depth_stencil.depthCompareOp                        = VK_COMPARE_OP_LESS_OR_EQUAL;
+        depth_stencil.depthBoundsTestEnable                 = VK_FALSE;
 
         pipeline_info.pDepthStencilState = &depth_stencil;
 
@@ -239,9 +247,9 @@ namespace Chandelier
     void SkyboxPass::SyncDescriptorSets()
     {
         SKYBOX_PASS_SETUP_CONTEXT
-        auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
+        auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
         m_desc_tracker->Bind(m_ubo.get(), Location(0), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Bind(m_skybox_tex.get(), &default_sampler, Location(1), VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_skybox_tex.get(), &cubemap_sampler, Location(1), VK_SHADER_STAGE_FRAGMENT_BIT);
         m_desc_tracker->Sync();
     }
 
@@ -251,6 +259,11 @@ namespace Chandelier
     void SkyboxPass::PostDrawCallback() {}
     void SkyboxPass::Draw()
     {
+        auto& main_pass_ubo = m_pass_info->main_pass_uniform_buffer;
+
+        if (!main_pass_ubo->config.show_skybox)
+            return;
+
         SKYBOX_PASS_SETUP_CONTEXT
 
         command_manager.BindPipeline(m_render_pipeline.pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);

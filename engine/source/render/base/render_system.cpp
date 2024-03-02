@@ -8,6 +8,7 @@
 #include "render/passes/main_pass.h"
 #include "render/passes/skybox_pass.h"
 #include "render/passes/ui_pass.h"
+#include "render/precompute/brdf_lut.h"
 #include "VkContext.h"
 
 namespace Chandelier
@@ -20,9 +21,16 @@ namespace Chandelier
         m_context       = std::make_shared<VKContext>();
         m_context->Initialize(m_window_system);
 
+        m_main_pass_uniform_buffer = std::make_shared<MainPassUniformBuffer>();
+        m_main_pass_uniform_buffer->config.rotating      = true;
+        // m_main_pass_uniform_buffer->config.show_skybox   = true;
+        m_main_pass_uniform_buffer->config.anti_aliasing = Enable_MSAA;
+
+        m_anti_aliasing = (eAntiAliasing)m_main_pass_uniform_buffer->config.anti_aliasing;
+
         auto main_pass_init_info                       = std::make_shared<MainRenderPassInitInfo>();
         main_pass_init_info->render_context.vk_context = m_context;
-        main_pass_init_info->aa                        = AntiAliasing::None_AA;
+        main_pass_init_info->memory_uniform_buffer     = m_main_pass_uniform_buffer;
         main_pass_init_info->width                     = m_window_system->GetWindowSize().x;
         main_pass_init_info->height                    = m_window_system->GetWindowSize().y;
 
@@ -32,6 +40,7 @@ namespace Chandelier
         auto skybox_pass_init_info                       = std::make_shared<SkyboxPassInitInfo>();
         skybox_pass_init_info->render_context.vk_context = m_context;
         skybox_pass_init_info->render_pass               = m_main_pass->GetRenderPass();
+        skybox_pass_init_info->main_pass_uniform_buffer  = m_main_pass_uniform_buffer;
         skybox_pass_init_info->width                     = m_window_system->GetWindowSize().x;
         skybox_pass_init_info->height                    = m_window_system->GetWindowSize().y;
 
@@ -41,12 +50,21 @@ namespace Chandelier
         auto ui_pass_init_info                       = std::make_shared<UIPassInitInfo>();
         ui_pass_init_info->render_context.vk_context = m_context;
         ui_pass_init_info->window_system             = m_window_system;
+        ui_pass_init_info->main_pass_uniform_buffer  = m_main_pass_uniform_buffer;
         ui_pass_init_info->render_pass               = m_main_pass->GetRenderPass();
         ui_pass_init_info->width                     = m_window_system->GetWindowSize().x;
         ui_pass_init_info->height                    = m_window_system->GetWindowSize().y;
         
         m_ui_pass = std::make_shared<UIPass>();
         m_ui_pass->Initialize(ui_pass_init_info);
+
+        auto brdflut_init_info            = std::make_shared<BRDFLutInitInfo>();
+        brdflut_init_info->width          = 512;
+        brdflut_init_info->height         = 512;
+        brdflut_init_info->render_context.vk_context = m_context;
+
+        m_lut_pass = std::make_shared<BRDFLutPass>();
+        m_lut_pass->Initialize(brdflut_init_info);
 
         // m_camera       = std::make_shared<Camera>();
         // m_camera->type = Camera::CameraType::lookat;
@@ -55,67 +73,103 @@ namespace Chandelier
         // Vector2i fb_size = m_window_system->GetFramebufferSize();
         // m_camera->setPerspective(40.0f, fb_size.x / (float)fb_size.y, 0.01f, 256.0f);
 
-        m_arcball_camera = std::make_shared<sss::ArcBallCamera>(glm::vec3(0.0f, 0.25f, 0.0f), 1.0f);
+        m_arcball_camera = std::make_shared<sss::ArcBallCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 8.0f);
+        // m_arcball_camera->update(glm::vec2(0.0, 45.0), 0.0);
 
+        SetupLightingSet();
+
+        PreRenderSetup();
     }
 
     void RenderSystem::UnInit() {}
+
+    void RenderSystem::SetupLightingSet()
+    {
+        auto& lights = m_main_pass_uniform_buffer->lights;
+
+        lights.point_light_num = 5;
+        for (int i = 0; i < lights.point_light_num; i++)
+        {
+            lights.point_lights[i].color     = Vector3(1.0, 1.0, 1.0);
+            lights.point_lights[i].intensity = 1000.0;
+            lights.point_lights[i].radius    = 10.0;
+        }
+
+        float base_distance = 3.0;
+
+        lights.point_lights[0].color    = Vector3(0.08, 0.29, 0.47);
+        lights.point_lights[0].position = Vector3(base_distance, base_distance, base_distance);
+
+        lights.point_lights[1].position = Vector3(-base_distance, -base_distance, -base_distance);
+        lights.point_lights[2].position = Vector3(base_distance, -base_distance, base_distance);
+        lights.point_lights[3].position = Vector3(-base_distance, -base_distance, base_distance);
+    }
 
     void RenderSystem::PreRenderSetup() { m_main_pass->PreDrawSetup(); }
 
     void RenderSystem::Render() { 
         auto& swapchain = m_context->GetSwapchain();
+        auto  extent    = swapchain.getExtent();
+        float ar        = extent.width / float(extent.height);
 
-        // m_camera->rotate(glm::vec3(0.f, 1.f, 0.f));
-        m_arcball_camera->update(glm::vec2(2.0, 0.0), 0.0);
+        if (m_main_pass_uniform_buffer->config.rotating)
+        {
+            // m_camera->rotate(glm::vec3(0.f, 1.f, 0.f));
+            m_arcball_camera->update(glm::vec2(1.0, 0.0), 0.0);
+        }
+        
+        constexpr float fovy = glm::radians(40.0f);
 
-        const float fovy = glm::radians(40.0f);
-
-        // calculate view, projection and shadow matrix
         const glm::mat4 vulkanCorrection = {
             {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.5f, 1.0f}};
 
         const glm::mat4 viewMatrix = m_arcball_camera->getViewMatrix();
         const glm::mat4 viewProjection =
-            vulkanCorrection * glm::perspective(fovy, 1280 / float(720), 0.01f, 50.0f) * viewMatrix;
+            vulkanCorrection * glm::perspective(fovy, ar, 0.01f, 50.0f) * viewMatrix;
 
         SkyboxPassUniformBuffer skybox_ubo;
-        // skybox_ubo.camera_position = m_camera->position;
-        // skybox_ubo.view_projection_mat = m_camera->matrices.perspective * m_camera->matrices.view;
-        // skybox_ubo.inv_model_view_projection = glm::inverse(m_camera->matrices.perspective * m_camera->matrices.view);
         skybox_ubo.inv_model_view_projection = glm::inverse(viewProjection);
-        
         m_skybox_pass->UpdateUniformBuffer(skybox_ubo);
 
-        MainPassUniformBuffer main_ubo;
-        // main_ubo.model_view = m_camera->matrices.view * glm::mat4(1.0f);
-        // main_ubo.projection = m_camera->matrices.perspective;
-        // main_ubo.projection[1][1] *= -1;
-        main_ubo.model_view = viewMatrix * glm::mat4(1.0f);
-        main_ubo.projection = vulkanCorrection * glm::perspective(fovy, 1280 / float(720), 0.01f, 50.0f);
-        m_main_pass->UpdateUniformBuffer(main_ubo);
+        m_main_pass_uniform_buffer->camera.position = glm::vec4(m_arcball_camera->getPosition(), 1.0);
+        m_main_pass_uniform_buffer->camera.view       = viewMatrix;
+        m_main_pass_uniform_buffer->camera.projection =
+            vulkanCorrection * glm::perspective(fovy, ar, 0.01f, 50.0f);
+        m_main_pass->UpdateUniformBuffer(*m_main_pass_uniform_buffer);
 
-        swapchain.AcquireImage(m_resized);
-
-        if (m_resized)
+        m_need_recreate |= (m_anti_aliasing != m_main_pass_uniform_buffer->config.anti_aliasing);
+        if (m_need_recreate)
         {
-            m_main_pass->Resize();
-            m_resized = false;
+            m_main_pass->Recreate();
+            m_skybox_pass->Recreate();
+            m_ui_pass->Recreate();
+
+            m_anti_aliasing = (eAntiAliasing)m_main_pass_uniform_buffer->config.anti_aliasing;
+            m_need_recreate = false;
+        }
+
+        swapchain.AcquireImage(m_need_resize);
+
+        if (m_need_resize)
+        {
+            m_main_pass->Recreate();
+            m_need_resize = false;
         }
 
         std::vector<std::shared_ptr<RenderPass>> subpasses {m_skybox_pass, m_ui_pass};
         
         m_main_pass->ForwardDraw(subpasses);
-        
-        m_context->TransferRenderPassResultToSwapchain(m_main_pass.get());
+        m_lut_pass->Draw();
+
+        // m_context->TransferRenderPassResultToSwapchain(m_main_pass.get());
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        swapchain.SwapBuffer(m_resized);
+        swapchain.SwapBuffer(m_need_resize);
 
-        if (m_resized)
+        if (m_need_resize)
         {
-            m_main_pass->Resize();
-            m_resized = false;
+            m_main_pass->Recreate();
+            m_need_resize = false;
         }
     }
 
