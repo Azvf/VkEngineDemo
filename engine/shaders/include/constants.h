@@ -7,5 +7,5 @@ const float INV_PI = 0.31830988618;
 const float INV_FOUR_PI = 0.07957747155;
 
 // config cosntants
-const int MAX_LOD_LEVEL = 8;
+const int MAX_LOD_LEVEL = 4;
 #endif

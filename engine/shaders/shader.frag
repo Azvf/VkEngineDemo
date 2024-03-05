@@ -18,6 +18,8 @@ layout(set = 0, binding = 4) uniform sampler2D metallic_sampler;
 layout(set = 0, binding = 5) uniform sampler2D roughness_sampler;
 
 layout(set = 0, binding = 6) uniform samplerCube skybox_irradiance_sampler;
+layout(set = 0, binding = 7) uniform samplerCube skybox_prefilter_sampler;
+layout(set = 0, binding = 8) uniform sampler2D brdf_lut_sampler;
 
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in vec3 in_normal;
@@ -35,10 +37,6 @@ vec3 CalculateWorldNormal() {
 
     mat3 TBN = mat3(T, B, N);
     return normalize(TBN * tangent_normal);
-}
-
-vec4 GammaCorrection(vec4 color, float gamma) {
-    return vec4(pow(color.rgb, vec3(1.0 / gamma)), color.a);
 }
 
 float SmoothDistanceAtt(float sqr_distance, float inv_sqr_attenuation_radius)
@@ -101,7 +99,8 @@ void main()
     
     vec3 N = CalculateWorldNormal();
     vec3 V = normalize(ubo.camera.position.xyz - in_world_position);
-
+    vec3 R = reflect(-V, N); 
+    
     float NdotV = dot(N, V);
 
     // point light
@@ -129,23 +128,24 @@ void main()
         Lo += BRDF(N, V, L, base_color, metallic, roughness, ao) * radiance;
     }
     
-    //// image based lighting
-    //{
-    //    vec3 irradiance = texture(skybox_irradiance_sampler, N).rgb
-    //    vec3 fd    = irradiance * base_color;
-//
-    //    // quote from mr Yan, "wi and wo makes little difference in rtr"
-    //    vec3 F0 = GetF0(base_color, metallic);
-    //    vec3 Fr = FrR(NdotV, F0, roughness);
-    //    vec2 brdf_lut = texture(brdfLUT_sampler, vec2(clamp(dot(N, V), 0.0, 1.0), roughness)).rg;
-//
-    //    float lod        = roughness * MAX_REFLECTION_LOD;
-    //    vec3  reflection = textureLod(specular_sampler, origin_samplecube_R, lod).rgb;
-    //    vec3  specular   = reflection * (F * brdf_lut.x + brdf_lut.y);
-//
-//
-//
-    //}
+    // // image based lighting
+    // {
+    //     vec3 irradiance = texture(skybox_irradiance_sampler, N).rgb;
+    //     vec3 fd    = irradiance * base_color;
+
+    //     vec3 F0 = GetF0(base_color, metallic);
+    //     vec3 F = FrR(NdotV, F0, roughness);
+    //     vec2 brdf_lut = texture(brdf_lut_sampler, vec2(max(NdotV, 0.0), roughness)).rg;
+
+    //     float lod        = roughness * MAX_LOD_LEVEL;
+    //     vec3  prefiltered_color = textureLod(skybox_prefilter_sampler, R, lod).rgb;
+    //     vec3  fs   = prefiltered_color * (F * brdf_lut.x + brdf_lut.y);
+        
+    //     vec3 kS = F;
+    //     vec3 kD = 1.0 - kS;
+    //     kD *= 1.0 - metallic;
+    //     Libl = (kD * fd + fs);
+    // }
 
     frag_color = vec4(Lo + Libl, 1.0);
 

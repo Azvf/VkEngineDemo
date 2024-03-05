@@ -1,67 +1,34 @@
 #version 450
 
 #include "include/constants.h"
-#include "math/quat.h"
 #include "include/brdf.h"
+#include "include/sampling.h"
 
 layout(location = 0) in vec2 in_uv;
 
 layout(location = 0) out vec4 frag_color;
 
-float _RadicalInverse_VdC(uint bits) {
-	// http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-	// efficient VanDerCorpus calculation.
+// // UE MonteCarlo.ush
+// // PDF = D * NoH / (4 * VoH)
+// vec4 ImportanceSampleGGX(vec2 E, float a2 )
+// {
+// 	float Phi = 2 * PI * E.x;
+// 	float CosTheta = sqrt( (1 - E.y) / ( 1 + (a2 - 1) * E.y ) );
+// 	float SinTheta = sqrt( 1 - CosTheta * CosTheta );
+// 
+// 	vec3 H;
+// 	H.x = SinTheta * cos( Phi );
+// 	H.y = SinTheta * sin( Phi );
+// 	H.z = CosTheta;
+// 	
+// 	float d = ( CosTheta * a2 - CosTheta ) * CosTheta + 1;
+// 	float D = a2 / ( PI*d*d );
+// 	float PDF = D * CosTheta;
+// 
+// 	return vec4( H, PDF );
+// }
 
-	bits = (bits << 16u) | (bits >> 16u);
-	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-	return float(bits) * 2.3283064365386963e-10; // / 0x100000000
-}
-
-vec2 Hammersley(uint i, uint N) {
-	return vec2(float(i) / float(N), _RadicalInverse_VdC(i));
-}
-
-vec3 SchlickGGX_Sample(vec2 Xi, vec3 norm, float roughness) {
-	float a = roughness * roughness;
-
-	float phi = TWO_PI * Xi.x;
-	float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));
-	float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-
-	// from spherical coordinates to cartesian coordinates - halfway vector
-	vec3 H;
-	H.x = cos(phi) * sinTheta;
-	H.y = sin(phi) * sinTheta;
-	H.z = cosTheta;
-
-	// from tangent-space H vector to world-space sample vector
-	vec4 rot = Quat_ZTo(norm);
-	return Quat_Rotate(rot, H);
-}
-
-vec2 UniformOnDisk(float Xi) {
-	float theta = TWO_PI * Xi;
-	return vec2(cos(theta), sin(theta));
-}
-
-vec3 CosOnHalfSphere(vec2 Xi) {
-	float r = sqrt(Xi.x);
-	vec2 pInDisk = r * UniformOnDisk(Xi.y);
-	float z = sqrt(1 - Xi.x);
-	return vec3(pInDisk, z);
-}
-
-vec3 CosOnHalfSphere(vec2 Xi, vec3 N) {
-	vec3 p = CosOnHalfSphere(Xi);
-	vec4 rot = Quat_ZTo(N);
-	return Quat_Rotate(rot, p);
-}
-
-// ----------------------------------------------------------------------------
-vec3 IntegrateBRDF(float NdotV, float roughness)
+vec2 IntegrateBRDF(float NdotV, float roughness)
 {
     vec3 V;
     V.x = sqrt(1.0 - NdotV*NdotV);
@@ -70,41 +37,39 @@ vec3 IntegrateBRDF(float NdotV, float roughness)
 
     float A = 0.0;
     float B = 0.0;
-	float C = 0.0;
 
     vec3 N = vec3(0.0, 0.0, 1.0);
-    
-    const uint SAMPLE_COUNT = 4096u;
+
+    const uint SAMPLE_COUNT = 1024u;
     for(uint i = 0u; i < SAMPLE_COUNT; ++i)
     {
-        // generates a sample vector that's biased towards the
-        // preferred alignment direction (importance sampling).
         vec2 Xi = Hammersley(i, SAMPLE_COUNT);
-		
-		{ // A and B
-			vec3 H = SchlickGGX_Sample(Xi, N, roughness);
-			vec3 L = normalize(2.0 * dot(V, H) * H - V);
+		vec3 H  = ImportanceSampleGGX(Xi, N, roughness);
+		//vec3 H = ImportanceSampleGGX(Xi, pow(roughness, 4)).xyz;
 
-			float NdotL = max(L.z, 0.0);
-			float NdotH = max(H.z, 0.0);
-			float VdotH = max(dot(V, H), 0.0);
+		vec3 L  = normalize(2.0 * dot(V, H) * H - V);
 
-			if(NdotL > 0.0)
-			{
-				float G = SchlickGGX_G_IBL(N, V, L, roughness);
-				float G_Vis = (G * VdotH) / (NdotH * NdotV);
-				float Fc = pow(1.0 - VdotH, 5.0);
+        float NdotL = max(L.z, 0.0);
+        float NdotH = max(H.z, 0.0);
+        float VdotH = max(dot(V, H), 0.0);
 
-				A += (1.0 - Fc) * G_Vis;
-				B += Fc * G_Vis;
-			}
-		}
+        if(NdotL > 0.0)
+        {
+            // float G = GeometrySmith(N, V, L, roughness);
+            float G = SchlickGGX_G_IBL(N, V, L, roughness);
+            float G_Vis = (G * VdotH) / (NdotH * NdotV);
+            float Fc = pow(1.0 - VdotH, 5.0);
+
+            A += (1.0 - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
     }
-
-    return vec3(A, B, C) / float(SAMPLE_COUNT);
+    A /= float(SAMPLE_COUNT);
+    B /= float(SAMPLE_COUNT);
+    return vec2(A, B);
 }
 // ----------------------------------------------------------------------------
 void main() 
 {
-	frag_color = vec4(IntegrateBRDF(in_uv.x, in_uv.y), 1.0);
+	frag_color = vec4(IntegrateBRDF(in_uv.x, in_uv.y), 0.0, 1.0);
 }

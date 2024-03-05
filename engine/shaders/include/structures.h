@@ -15,7 +15,7 @@ struct CameraUniformBuffer
 struct ConfigUniformBuffer
 {
     int enable_anti_aliasing;
-    int show_skybox;
+    int padding;
     int rotating;
     int use_gamma_correction;
     int tone_mapping;
