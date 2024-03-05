@@ -4,12 +4,14 @@
 
 namespace Chandelier {
     class WindowSystem;
-	
+    class SkyboxPassUniformBuffer;
+
 	struct UIPassInitInfo : public BaseRenderPassInitInfo {
 		virtual ~UIPassInitInfo() = default;
 
 		std::shared_ptr<WindowSystem> window_system;
         std::shared_ptr<MainPassUniformBuffer> main_pass_uniform_buffer;
+        std::shared_ptr<SkyboxPassUniformBuffer> skybox_pass_uniform_buffer;
 
         const VkRenderPass*           render_pass = nullptr;
 	};

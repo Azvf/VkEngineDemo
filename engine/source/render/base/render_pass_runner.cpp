@@ -19,11 +19,15 @@ namespace Chandelier
         m_render_pass->Draw();
     }
 
-    void RenderPassRunner::Save(std::string_view path, uint32_t framebuffer_index, uint32_t attachment_index)
-    { 
+    void RenderPassRunner::Save(std::string_view path,
+                                uint32_t         framebuffer_index,
+                                uint32_t         attachment_index,
+                                uint32_t         layer,
+                                uint32_t         mip_level)
+    {
         auto attachment = m_render_pass->GetAttachment(framebuffer_index, framebuffer_index);
         attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        SaveTexture(attachment, path, framebuffer_index, attachment_index);
+        SaveTexture(attachment, path, layer, mip_level);
     }
 
 

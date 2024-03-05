@@ -1,6 +1,8 @@
 #pragma once
 
 #include "render/base/render_pass_base.h"
+#include "resource/asset_manager/asset_manager.h"
+
 #include "VkCommon.h"
 #include "Framebuffer.h"
 
@@ -9,6 +11,7 @@ namespace Chandelier
     class GlobalRenderResource;
     class DescriptorTracker;
     class MainPassUniformBuffer;
+    class RenderResources;
 
     enum eAttachment : uint8_t
     {
@@ -46,6 +49,7 @@ namespace Chandelier
         virtual ~BaseRenderPassInitInfo() = default;
         RenderPassContext render_context;
         uint32_t          width, height;
+        std::shared_ptr<RenderResources> render_resources;
     };
 
     class RenderPass : public RenderPassBase
@@ -71,10 +75,11 @@ namespace Chandelier
 
         virtual std::shared_ptr<Texture> GetAttachment(uint32_t framebuffer_index, uint32_t attachment_index)
         {
+            assert(m_framebuffers.size());
+            if (!m_framebuffers.size())
+                return nullptr;
             return m_framebuffers.at(framebuffer_index).attachments.at(attachment_index);
         }
-
-        std::shared_ptr<GlobalRenderResource> m_global_render_resource;
 
         std::vector<Framebuffer> m_framebuffers;
     };

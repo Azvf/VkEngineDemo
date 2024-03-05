@@ -51,20 +51,6 @@ namespace Chandelier
     void SkyboxPass::SetupShaderResources()
     {
         SKYBOX_PASS_SETUP_CONTEXT
-        std::array<std::shared_ptr<Texture>, 6> skybox_faces;
-        skybox_faces[0] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X+.hdr", 4);
-        skybox_faces[1] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X-.hdr", 4);
-        skybox_faces[2] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z+.hdr", 4);
-        skybox_faces[3] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z-.hdr", 4);
-        skybox_faces[4] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y+.hdr", 4);
-        skybox_faces[5] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y-.hdr", 4);
-        m_skybox_tex = LoadSkybox(context, skybox_faces, 4);
 
         m_ubo = std::make_shared<Buffer>();
         m_ubo->Allocate(context,
@@ -76,7 +62,6 @@ namespace Chandelier
 
     void SkyboxPass::ResetShaderResources()
     {
-        m_skybox_tex = nullptr;
         m_ubo        = nullptr;
     }
 
@@ -247,9 +232,23 @@ namespace Chandelier
     void SkyboxPass::SyncDescriptorSets()
     {
         SKYBOX_PASS_SETUP_CONTEXT
+
+        size_t index = 0;
+
         auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
-        m_desc_tracker->Bind(m_ubo.get(), Location(0), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Bind(m_skybox_tex.get(), &cubemap_sampler, Location(1), VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_ubo.get(), Location(index++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_cubemap.get(),
+                             &cubemap_sampler,
+                             Location(index++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_irradiance_cubemap.get(),
+                             &cubemap_sampler,
+                             Location(index++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
+                             &cubemap_sampler,
+                             Location(index++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
         m_desc_tracker->Sync();
     }
 
@@ -260,9 +259,6 @@ namespace Chandelier
     void SkyboxPass::Draw()
     {
         auto& main_pass_ubo = m_pass_info->main_pass_uniform_buffer;
-
-        if (!main_pass_ubo->config.show_skybox)
-            return;
 
         SKYBOX_PASS_SETUP_CONTEXT
 

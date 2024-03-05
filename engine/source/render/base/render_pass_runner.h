@@ -15,7 +15,11 @@ namespace Chandelier
 
         void Run();
 
-        void Save(std::string_view path, uint32_t framebuffer_index = 0, uint32_t attachment_index = 0);
+        void Save(std::string_view path,
+                  uint32_t         framebuffer_index = 0,
+                  uint32_t         attachment_index  = 0,
+                  uint32_t         layer             = 0,
+                  uint32_t         mip_level         = 0);
 
     private:
         std::shared_ptr<RenderPass> m_render_pass;

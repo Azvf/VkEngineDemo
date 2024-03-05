@@ -1,11 +1,17 @@
 #include "main_pass.h"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "resource/asset_manager/asset_manager.h"
 #include "runtime/core/base/exception.h"
 #include "runtime/framework/global/global_context.h"
 #include "render/base/common_vao_defines.h"
 #include "render/base/render_pass_runner.h"
 #include "precompute/brdf_lut.h"
+#include "precompute/cubemap_prefilter.h"
+#include "precompute/irradiance_convolution_pass.h"
 
 #include "Buffer.h"
 #include "Descriptor.h"
@@ -59,33 +65,6 @@ namespace Chandelier
     {
         auto& context = info->render_context.vk_context;
         m_pass_info   = std::dynamic_pointer_cast<MainRenderPassInitInfo>(info);
-
-        /**
-         * @todo: assets managed through asset manager
-         */
-        std::string asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/gun/";
-        m_meshes.push_back(LoadStaticMesh(context, asset_dir + "1.obj"));
-        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_BaseColor.png", SRGB_Color_Space));
-        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Normal.png", Linear_Color_Space));
-        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Height.png", Linear_Color_Space));
-        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Metallic.png", Linear_Color_Space));
-        m_textures.push_back(LoadTexture(context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Roughness.png", Linear_Color_Space));
-        m_screen_mesh = Mesh::load(context, Has_UV, ScreenVertices.data(), ScreenVertices.size(), nullptr, 0);
-        
-        std::array<std::shared_ptr<Texture>, 6> skybox_irradiance_faces;
-        skybox_irradiance_faces[0] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_X+.hdr", 4);
-        skybox_irradiance_faces[1] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_X-.hdr", 4);
-        skybox_irradiance_faces[2] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Z+.hdr", 4);
-        skybox_irradiance_faces[3] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Z-.hdr", 4);
-        skybox_irradiance_faces[4] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Y+.hdr", 4);
-        skybox_irradiance_faces[5] = LoadTextureHDR(
-            context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_irradiance_Y-.hdr", 4);
-        m_skybox_irradiance = LoadSkybox(context, skybox_irradiance_faces, 4);
 
         SetupUniformBuffer();
         SetupDescriptorSets();
@@ -145,6 +124,7 @@ namespace Chandelier
             color_attachment->InitAttachment(context,
                                              width,
                                              height,
+                                             1,
                                              swapchain.getImageFormat(),
                                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -153,6 +133,7 @@ namespace Chandelier
             depth_stencil_attachment->InitAttachment(context,
                                                      width,
                                                      height,
+                                                     1,
                                                      VK_FORMAT_D32_SFLOAT_S8_UINT,
                                                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
                                                          VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -188,13 +169,16 @@ namespace Chandelier
         size_t desc_loc = 0;
         m_desc_tracker->Bind(m_ubo.get(), Location(desc_loc++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
         
-        for (auto&texture : m_textures)
+        for (auto&texture : m_pass_info->render_resources->model_tex_vec)
         {
             m_desc_tracker->Bind(texture.get(), &default_sampler, Location(desc_loc++), VK_SHADER_STAGE_FRAGMENT_BIT);
         }
 
         auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
-        m_desc_tracker->Bind(m_skybox_irradiance.get(), &cubemap_sampler, Location(desc_loc++), VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
+                             &cubemap_sampler,
+                             Location(desc_loc++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
 
         m_desc_tracker->Sync();
     }
@@ -522,24 +506,173 @@ namespace Chandelier
         m_framebuffers.clear();
     }
 
-    void MainRenderPass::PreDrawSetup() {
-        MAIN_PASS_SETUP_CONTEXT 
-        
+    void MainRenderPass::PreDrawSetup()
+    {
+// #define COMPUTE_BRDF_LUT
+#define COMPUTE_PREFILTER
+#define COMPUTE_IRRADIANCE
+
+        MAIN_PASS_SETUP_CONTEXT
+
         // @todo: file check
         RenderPassRunner runner;
+
+#ifdef COMPUTE_BRDF_LUT
+        {
+            // ibl brdf lut
+            auto brdflut_init_info              = std::make_shared<BRDFLutInitInfo>();
+            brdflut_init_info->width            = 512;
+            brdflut_init_info->height           = 512;
+            brdflut_init_info->render_context   = m_pass_info->render_context;
+            brdflut_init_info->render_resources = m_pass_info->render_resources;
+
+            auto brdf_lut_pass = std::make_shared<BRDFLutPass>();
+            brdf_lut_pass->Initialize(brdflut_init_info);
+            runner.Initialize(brdf_lut_pass);
+            runner.Run();
+            runner.Save("brdf_lut.png");
+        }
+#endif
+
+        const glm::mat4 vulkanCorrection = {
+            {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.5f, 1.0f}};
+        glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+        glm::mat4 captureViews[]    = {
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // X+
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // X-
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)), // Z+
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)), // Z-
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // Y+
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // Y-
+        };
+
+        {
+            // ibl cubemap prefilter
+            auto cubemap_prefilter_init_info              = std::make_shared<CubeMapPrefilterInitInfo>();
+            cubemap_prefilter_init_info->width            = CUBEMAP_PREFILTER_BASE_WIDTH;
+            cubemap_prefilter_init_info->height           = CUBEMAP_PREFILTER_BASE_HEIGHT;
+            cubemap_prefilter_init_info->render_context   = m_pass_info->render_context;
+            cubemap_prefilter_init_info->render_resources = m_pass_info->render_resources;
         
-        auto brdflut_init_info = std::make_shared<BRDFLutInitInfo>();
-        brdflut_init_info->width          = 512;
-        brdflut_init_info->height         = 512;
-        brdflut_init_info->render_context = m_pass_info->render_context;
-        
-        auto brdf_lut_pass = std::make_shared<BRDFLutPass>();
-        brdf_lut_pass->Initialize(brdflut_init_info);
-        runner.Initialize(brdf_lut_pass);
-        
-        runner.Run();
-        
-        runner.Save("brdf_lut.png");
+            auto cubemap_prefilter_pass = std::make_shared<CubeMapPrefilterPass>();
+            cubemap_prefilter_pass->Initialize(cubemap_prefilter_init_info);
+            runner.Initialize(cubemap_prefilter_pass);
+            
+            for (int mip_level = 0; mip_level < CUBEMAP_PREFILTER_MIP_LEVEL; mip_level++)
+            {
+                CubemapFilterPassUniformBuffer prefilter_ubo;
+                prefilter_ubo.roughness = (float)mip_level / (CUBEMAP_PREFILTER_MIP_LEVEL - 1);
+
+                uint32_t data_width     = CUBEMAP_PREFILTER_BASE_WIDTH * std::pow(0.5, mip_level);
+                uint32_t data_height    = CUBEMAP_PREFILTER_BASE_HEIGHT * std::pow(0.5, mip_level);
+                cubemap_prefilter_init_info->width  = data_width;
+                cubemap_prefilter_init_info->height = data_height;
+
+                for (int layer = 0; layer < 6; ++layer)
+                {
+                    prefilter_ubo.view       = captureViews[layer];
+                    prefilter_ubo.projection = vulkanCorrection * captureProjection;
+
+                    cubemap_prefilter_pass->UpdateUniformBuffer(prefilter_ubo);
+                    runner.Run();
+                    std::string filename = "cubemap_prefilter_mip_" + std::to_string(mip_level) + "_layer_" +
+                                           std::to_string(layer) + ".png";
+                    // runner.Save(filename);
+
+                    auto prefilter_attachment = cubemap_prefilter_pass->GetAttachment(0, 0);
+                    prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                    
+                    VkImageCopy copy_region = {};
+                    
+                    copy_region.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                    copy_region.srcSubresource.baseArrayLayer = 0;
+                    copy_region.srcSubresource.mipLevel       = 0;
+                    copy_region.srcSubresource.layerCount     = 1;
+                    copy_region.srcOffset                     = {0, 0, 0};
+                    
+                    copy_region.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                    copy_region.dstSubresource.baseArrayLayer = layer;
+                    copy_region.dstSubresource.mipLevel       = mip_level;
+                    copy_region.dstSubresource.layerCount     = 1;
+                    copy_region.dstOffset                     = {0, 0, 0};
+                    
+                    copy_region.extent.width  = static_cast<uint32_t>(data_width);
+                    copy_region.extent.height = static_cast<uint32_t>(data_height);
+                    copy_region.extent.depth  = 1;
+                    
+                    command_manager.Copy(prefilter_attachment.get(),
+                                         m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
+                                         std::vector<VkImageCopy> {copy_region});
+                    
+                    prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+                    prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                    SaveTexture(m_pass_info->render_resources->skybox_prefilter_cubemap, filename, layer, mip_level);
+                }
+            }
+            // command_manager.Submit();
+        }
+
+        #ifdef COMPUTE_IRRADIANCE
+        {
+            // ibl irradiance convolution
+            auto irradiance_init_info              = std::make_shared<IrradianceConvolutionPassInitInfo>();
+            irradiance_init_info->width            = 256;
+            irradiance_init_info->height           = 256;
+            irradiance_init_info->render_context   = m_pass_info->render_context;
+            irradiance_init_info->render_resources = m_pass_info->render_resources;
+
+            auto irradiance_convolution_pass = std::make_shared<IrradianceConvolutionPass>();
+            irradiance_convolution_pass->Initialize(irradiance_init_info);
+            runner.Initialize(irradiance_convolution_pass);
+
+            for (unsigned int layer = 0; layer < 6; ++layer)
+            {
+                IrradianceConvolutionPassUniformBuffer prefilter_ubo;
+                prefilter_ubo.view       = captureViews[layer];
+                prefilter_ubo.projection = vulkanCorrection * captureProjection;
+
+                irradiance_convolution_pass->UpdateUniformBuffer(prefilter_ubo);
+
+                runner.Run();
+                // std::string filename = "irradiance_map_" + std::to_string(i) + ".png";
+                // runner.Save(filename);
+
+                auto irradiance_attachment = irradiance_convolution_pass->GetAttachment(0, 0);
+                irradiance_attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+                VkImageCopy copy_region = {};
+
+                copy_region.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                copy_region.srcSubresource.baseArrayLayer = 0;
+                copy_region.srcSubresource.mipLevel       = 0;
+                copy_region.srcSubresource.layerCount     = 1;
+                copy_region.srcOffset                     = {0, 0, 0};
+
+                copy_region.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                copy_region.dstSubresource.baseArrayLayer = layer;
+                copy_region.dstSubresource.mipLevel       = 0;
+                copy_region.dstSubresource.layerCount     = 1;
+                copy_region.dstOffset                     = {0, 0, 0};
+
+                copy_region.extent.width  = static_cast<uint32_t>(irradiance_init_info->width);
+                copy_region.extent.height = static_cast<uint32_t>(irradiance_init_info->height);
+                copy_region.extent.depth  = 1;
+
+                command_manager.Copy(irradiance_attachment.get(),
+                                     m_pass_info->render_resources->skybox_irradiance_cubemap.get(),
+                                     std::vector<VkImageCopy> {copy_region});
+
+                irradiance_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            }
+            command_manager.Submit();
+        }
+        #endif
     }
 
     void MainRenderPass::PostDrawCallback()
@@ -554,7 +687,7 @@ namespace Chandelier
         MAIN_PASS_SETUP_CONTEXT 
 
         // todo: is it necessary to bind everytime before drawing? if not relocate it later
-        for (auto& mesh : m_meshes)
+        for (auto& mesh : m_pass_info->render_resources->model_mesh_vec)
         {
             auto                      index_buffer       = mesh->GetBuffer(Index_Buffer);
             std::vector<VkBuffer>     bind_index_buffers = {index_buffer};

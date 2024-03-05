@@ -9,32 +9,43 @@
 #include "render/passes/skybox_pass.h"
 #include "render/passes/ui_pass.h"
 #include "render/precompute/brdf_lut.h"
+#include "render/precompute/cubemap_prefilter.h"
+
 #include "VkContext.h"
+#include "Texture.h"
 
 namespace Chandelier
 {
     RenderSystem::~RenderSystem() { UnInit(); }
 
-    void RenderSystem::Initialize(std::shared_ptr<WindowSystem> window_system)
+    void RenderSystem::SetupUnifromBuffers()
     {
-        m_window_system = window_system;
-        m_context       = std::make_shared<VKContext>();
-        m_context->Initialize(m_window_system);
-
-        m_main_pass_uniform_buffer = std::make_shared<MainPassUniformBuffer>();
-        m_main_pass_uniform_buffer->config.rotating      = true;
-        // m_main_pass_uniform_buffer->config.show_skybox   = true;
-        m_main_pass_uniform_buffer->config.anti_aliasing = Enable_MSAA;
-
+        {   // main pass ubo
+            m_main_pass_uniform_buffer                       = std::make_shared<MainPassUniformBuffer>();
+            m_main_pass_uniform_buffer->config.rotating      = true;
+            m_main_pass_uniform_buffer->config.anti_aliasing = Enable_MSAA;
+        }
+        
+        // set initial aa flag
         m_anti_aliasing = (eAntiAliasing)m_main_pass_uniform_buffer->config.anti_aliasing;
 
+        {   // skybox pass ubo
+            m_skybox_pass_uniform_buffer                             = std::make_shared<SkyboxPassUniformBuffer>();
+            m_skybox_pass_uniform_buffer->inv_model_view_projection  = glm::mat4(1.0);
+            m_skybox_pass_uniform_buffer->show_skybox_index          = 0;
+            m_skybox_pass_uniform_buffer->skybox_prefilter_mip_level = 0.0;
+        }
+    }
+
+    void RenderSystem::SetupRenderPasses()
+    {
         auto main_pass_init_info                       = std::make_shared<MainRenderPassInitInfo>();
         main_pass_init_info->render_context.vk_context = m_context;
         main_pass_init_info->memory_uniform_buffer     = m_main_pass_uniform_buffer;
         main_pass_init_info->width                     = m_window_system->GetWindowSize().x;
         main_pass_init_info->height                    = m_window_system->GetWindowSize().y;
-
-        m_main_pass = std::make_shared<MainRenderPass>();
+        main_pass_init_info->render_resources          = m_render_resources;
+        m_main_pass                                    = std::make_shared<MainRenderPass>();
         m_main_pass->Initialize(main_pass_init_info);
 
         auto skybox_pass_init_info                       = std::make_shared<SkyboxPassInitInfo>();
@@ -43,35 +54,35 @@ namespace Chandelier
         skybox_pass_init_info->main_pass_uniform_buffer  = m_main_pass_uniform_buffer;
         skybox_pass_init_info->width                     = m_window_system->GetWindowSize().x;
         skybox_pass_init_info->height                    = m_window_system->GetWindowSize().y;
+        skybox_pass_init_info->render_resources          = m_render_resources;
 
         m_skybox_pass = std::make_shared<SkyboxPass>();
         m_skybox_pass->Initialize(skybox_pass_init_info);
 
-        auto ui_pass_init_info                       = std::make_shared<UIPassInitInfo>();
-        ui_pass_init_info->render_context.vk_context = m_context;
-        ui_pass_init_info->window_system             = m_window_system;
-        ui_pass_init_info->main_pass_uniform_buffer  = m_main_pass_uniform_buffer;
-        ui_pass_init_info->render_pass               = m_main_pass->GetRenderPass();
-        ui_pass_init_info->width                     = m_window_system->GetWindowSize().x;
-        ui_pass_init_info->height                    = m_window_system->GetWindowSize().y;
-        
+        auto ui_pass_init_info                        = std::make_shared<UIPassInitInfo>();
+        ui_pass_init_info->render_context.vk_context  = m_context;
+        ui_pass_init_info->window_system              = m_window_system;
+        ui_pass_init_info->main_pass_uniform_buffer   = m_main_pass_uniform_buffer;
+        ui_pass_init_info->skybox_pass_uniform_buffer = m_skybox_pass_uniform_buffer;
+        ui_pass_init_info->render_pass                = m_main_pass->GetRenderPass();
+        ui_pass_init_info->width                      = m_window_system->GetWindowSize().x;
+        ui_pass_init_info->height                     = m_window_system->GetWindowSize().y;
+
         m_ui_pass = std::make_shared<UIPass>();
         m_ui_pass->Initialize(ui_pass_init_info);
+    }
 
-        auto brdflut_init_info            = std::make_shared<BRDFLutInitInfo>();
-        brdflut_init_info->width          = 512;
-        brdflut_init_info->height         = 512;
-        brdflut_init_info->render_context.vk_context = m_context;
+    void RenderSystem::Initialize(std::shared_ptr<WindowSystem> window_system)
+    {
+        m_window_system = window_system;
+        m_context       = std::make_shared<VKContext>();
+        m_context->Initialize(m_window_system);
 
-        m_lut_pass = std::make_shared<BRDFLutPass>();
-        m_lut_pass->Initialize(brdflut_init_info);
+        LoadAssets();
+        
+        SetupUnifromBuffers();
 
-        // m_camera       = std::make_shared<Camera>();
-        // m_camera->type = Camera::CameraType::lookat;
-        // // m_camera->setPosition(glm::vec3(0.f, -0.5f, -3.f));
-        // m_camera->setRotation(glm::vec3(0.0f));
-        // Vector2i fb_size = m_window_system->GetFramebufferSize();
-        // m_camera->setPerspective(40.0f, fb_size.x / (float)fb_size.y, 0.01f, 256.0f);
+        SetupRenderPasses();
 
         m_arcball_camera = std::make_shared<sss::ArcBallCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 8.0f);
         // m_arcball_camera->update(glm::vec2(0.0, 45.0), 0.0);
@@ -105,6 +116,100 @@ namespace Chandelier
         lights.point_lights[3].position = Vector3(-base_distance, -base_distance, base_distance);
     }
 
+    void RenderSystem::LoadAssets() { 
+        auto& command_manager = m_context->GetCommandManager();
+        m_render_resources = std::make_shared<RenderResources>();
+        {
+            std::string asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/gun/";
+            
+            // mesh
+            m_render_resources->model_mesh_vec.push_back(LoadStaticMesh(m_context, asset_dir + "1.obj"));
+            
+            // textures
+            m_render_resources->model_tex_vec.push_back(LoadTexture(
+                m_context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_BaseColor.png", SRGB_Color_Space));
+            m_render_resources->model_tex_vec.push_back(LoadTexture(
+                m_context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Normal.png", Linear_Color_Space));
+            m_render_resources->model_tex_vec.push_back(LoadTexture(
+                m_context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Height.png", Linear_Color_Space));
+            m_render_resources->model_tex_vec.push_back(LoadTexture(
+                m_context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Metallic.png", Linear_Color_Space));
+            m_render_resources->model_tex_vec.push_back(LoadTexture(
+                m_context, asset_dir + "7_uv_checker_material_uv_grid_4096x4096_Roughness.png", Linear_Color_Space));
+
+            // // brdf lut
+            // m_render_resources->brdf_lut = LoadTexture(m_context, asset_dir, Linear_Color_Space);
+
+            // screen mesh
+            m_render_resources->screen_mesh = LoadDefaultMesh(m_context, Screen_Mesh);
+
+            // cube mesh
+            m_render_resources->cube_mesh = LoadDefaultMesh(m_context, Cube_Mesh);
+
+            {
+                // skybox cubemap
+                std::array<std::shared_ptr<Texture>, 6> skybox_faces;
+                skybox_faces[0] = LoadTextureHDR(
+                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X+.hdr", 4);
+                skybox_faces[1] = LoadTextureHDR(
+                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X-.hdr", 4);
+                skybox_faces[2] = LoadTextureHDR(
+                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z+.hdr", 4);
+                skybox_faces[3] = LoadTextureHDR(
+                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z-.hdr", 4);
+                skybox_faces[4] = LoadTextureHDR(
+                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y+.hdr", 4);
+                skybox_faces[5] = LoadTextureHDR(
+                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y-.hdr", 4);
+                m_render_resources->skybox_cubemap = LoadSkybox(m_context, skybox_faces, 4);
+            }
+            
+            {
+                // skybox prefilter cubemap
+                m_render_resources->skybox_prefilter_cubemap = std::make_shared<Texture>();
+
+                m_render_resources->skybox_prefilter_cubemap->InitCubeMap(
+                    m_context,
+                    CUBEMAP_PREFILTER_BASE_WIDTH,
+                    CUBEMAP_PREFILTER_MIP_LEVEL,
+                    VK_FORMAT_R8G8B8A8_UNORM,
+                    VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+                m_render_resources->skybox_prefilter_cubemap->TransferLayout(VK_IMAGE_LAYOUT_UNDEFINED,
+                                                                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                                                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                                                             0,
+                                                                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                                             VK_ACCESS_TRANSFER_WRITE_BIT);
+
+                m_context->GenerateMipMaps(m_render_resources->skybox_prefilter_cubemap.get(),
+                                           CUBEMAP_PREFILTER_MIP_LEVEL);
+            }
+
+            {
+                // skybox irradiance cubemap
+                m_render_resources->skybox_irradiance_cubemap = std::make_shared<Texture>();
+
+                m_render_resources->skybox_irradiance_cubemap->InitCubeMap(
+                    m_context,
+                    CUBEMAP_PREFILTER_BASE_WIDTH,
+                    CUBEMAP_PREFILTER_MIP_LEVEL,
+                    VK_FORMAT_R8G8B8A8_UNORM,
+                    VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+                m_render_resources->skybox_irradiance_cubemap->TransferLayout(VK_IMAGE_LAYOUT_UNDEFINED,
+                                                                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                                                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                                                             0,
+                                                                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                                             VK_ACCESS_TRANSFER_WRITE_BIT);
+
+                command_manager.Submit();
+            }
+            
+        }
+    }
+
     void RenderSystem::PreRenderSetup() { m_main_pass->PreDrawSetup(); }
 
     void RenderSystem::Render() { 
@@ -127,9 +232,8 @@ namespace Chandelier
         const glm::mat4 viewProjection =
             vulkanCorrection * glm::perspective(fovy, ar, 0.01f, 50.0f) * viewMatrix;
 
-        SkyboxPassUniformBuffer skybox_ubo;
-        skybox_ubo.inv_model_view_projection = glm::inverse(viewProjection);
-        m_skybox_pass->UpdateUniformBuffer(skybox_ubo);
+        m_skybox_pass_uniform_buffer->inv_model_view_projection = glm::inverse(viewProjection);
+        m_skybox_pass->UpdateUniformBuffer(*m_skybox_pass_uniform_buffer);
 
         m_main_pass_uniform_buffer->camera.position = glm::vec4(m_arcball_camera->getPosition(), 1.0);
         m_main_pass_uniform_buffer->camera.view       = viewMatrix;
@@ -159,9 +263,6 @@ namespace Chandelier
         std::vector<std::shared_ptr<RenderPass>> subpasses {m_skybox_pass, m_ui_pass};
         
         m_main_pass->ForwardDraw(subpasses);
-        m_lut_pass->Draw();
-
-        // m_context->TransferRenderPassResultToSwapchain(m_main_pass.get());
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         swapchain.SwapBuffer(m_need_resize);

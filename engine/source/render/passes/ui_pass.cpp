@@ -7,6 +7,8 @@
 #include "runtime/core/base/exception.h"
 #include "UI/window_system.h"
 #include "main_pass.h"
+#include "skybox_pass.h"
+#include "precompute/cubemap_prefilter.h"
 
 #include "VkContext.h"
 #include "CommandBuffers.h"
@@ -249,6 +251,7 @@ namespace Chandelier {
 	
     void UIPass::ImGuiDraw() {
         auto& main_pass_ubo = m_pass_info->main_pass_uniform_buffer;
+        auto& skybox_pass_ubo = m_pass_info->skybox_pass_uniform_buffer;
 
         #if 1
         struct FuncHolder
@@ -284,7 +287,25 @@ namespace Chandelier {
                          aa_string_names.size());
         }
 
-        ImGuiSetCheckBox("show skybox", &main_pass_ubo->config.show_skybox);
+        {
+            int&   skybox_index        = skybox_pass_ubo->show_skybox_index;
+            float& prefilter_mip_level = skybox_pass_ubo->skybox_prefilter_mip_level;
+
+            std::vector<std::string> skybox_display_string_names {
+                "None", "skybox", "skybox_irradiance", "skybox_prefilter"};
+            ImGui::Combo("skybox",
+                         &skybox_index,
+                         &FuncHolder::ItemGetter,
+                         skybox_display_string_names.data(),
+                         skybox_display_string_names.size());
+
+            if (skybox_index == Display_Skybox_Prefilter)
+            {
+                ImGui::SliderFloat(
+                    "skybox prefilter mip level", &prefilter_mip_level, 0.0f, (float)(CUBEMAP_PREFILTER_MIP_LEVEL - 1));
+            }
+        }
+
         ImGuiSetCheckBox("rotating", &main_pass_ubo->config.rotating);
         ImGuiSetCheckBox("gamma correction", &main_pass_ubo->config.use_gamma_correction);
         ImGuiSetCheckBox("tone mapping", &main_pass_ubo->config.tone_mapping);

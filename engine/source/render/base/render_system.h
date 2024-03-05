@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render/base/render_pass.h"
+#include "resource/asset_manager/asset_manager.h"
 #include "ArcBallCamera.h"
 
 class Camera;
@@ -12,9 +13,9 @@ namespace Chandelier
     class MainRenderPass;
     class SkyboxPass;
     class UIPass;
-    class BRDFLutPass;
 
     class MainPassUniformBuffer;
+    class SkyboxPassUniformBuffer;
 
     class RenderSystem
     {
@@ -31,6 +32,9 @@ namespace Chandelier
 
     private:
         void SetupLightingSet();
+        void LoadAssets();
+        void SetupUnifromBuffers();
+        void SetupRenderPasses();
 
     private:
         std::shared_ptr<VKContext>      m_context;
@@ -41,13 +45,15 @@ namespace Chandelier
         std::shared_ptr<MainRenderPass> m_main_pass;
         std::shared_ptr<SkyboxPass>     m_skybox_pass;
         std::shared_ptr<UIPass>         m_ui_pass;
-        std::shared_ptr<BRDFLutPass>    m_lut_pass;
 
         std::shared_ptr<MainPassUniformBuffer> m_main_pass_uniform_buffer;
+        std::shared_ptr<SkyboxPassUniformBuffer> m_skybox_pass_uniform_buffer;
 
         bool m_need_resize   = false;
         bool m_need_recreate = false;
         
         eAntiAliasing m_anti_aliasing;
+
+        std::shared_ptr<RenderResources> m_render_resources;
     };
 } // namespace Chandelier

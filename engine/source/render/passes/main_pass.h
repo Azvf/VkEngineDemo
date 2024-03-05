@@ -25,7 +25,7 @@ namespace Chandelier
     struct ConfigUniformBuffer
     {
         int32_t anti_aliasing;
-        int32_t show_skybox;
+        int32_t padding;
         int32_t rotating;
         int32_t use_gamma_correction;
         int32_t tone_mapping;
@@ -109,14 +109,6 @@ namespace Chandelier
             Layout_Type_Count
         };
         
-        /**
-         * @todo: implement asset mananger to manage
-         */
-        std::vector<std::shared_ptr<Texture>> m_textures;
-        std::vector<std::shared_ptr<Mesh>>    m_meshes;
-        std::shared_ptr<Texture>              m_skybox_irradiance;
-        std::shared_ptr<Mesh> m_screen_mesh;
-
         /**
          * @todo: optimize use push constants
          */
