@@ -39,7 +39,6 @@ namespace Chandelier
 
     private:
         std::shared_ptr<BRDFLutInitInfo> m_pass_info;
-        std::shared_ptr<Mesh>            m_screen_mesh;
     };
 
 } // namespace Chandelier

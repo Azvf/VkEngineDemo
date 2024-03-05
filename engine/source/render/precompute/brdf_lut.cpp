@@ -25,8 +25,6 @@ namespace Chandelier
         m_pass_info = std::dynamic_pointer_cast<BRDFLutInitInfo>(info);
         auto& context  = m_pass_info->render_context.vk_context;
         
-        m_screen_mesh = Mesh::load(context, Has_UV, ScreenVertices.data(), ScreenVertices.size(), nullptr, 0);
-
         SetupAttachments();
         SetupPipeline();
         SetupFramebuffers();
@@ -58,6 +56,7 @@ namespace Chandelier
         attachment->InitAttachment(context,
                                    width,
                                    height,
+                                   1,
                                    BRDF_LUT_FORMAT,
                                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
@@ -133,8 +132,10 @@ namespace Chandelier
         VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
         vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-        std::vector<VkVertexInputBindingDescription> vert_binding_descs = m_screen_mesh->GetBindingDescription();
-        std::vector<VkVertexInputAttributeDescription> vert_attr_descs = m_screen_mesh->GetAttributeDescriptions();
+        std::vector<VkVertexInputBindingDescription> vert_binding_descs =
+            m_pass_info->render_resources->screen_mesh->GetBindingDescription();
+        std::vector<VkVertexInputAttributeDescription> vert_attr_descs =
+            m_pass_info->render_resources->screen_mesh->GetAttributeDescriptions();
         
         vertex_input_info.vertexBindingDescriptionCount   = vert_binding_descs.size();
         vertex_input_info.pVertexBindingDescriptions      = vert_binding_descs.data();
@@ -308,8 +309,9 @@ namespace Chandelier
         command_manager.SetViewport(VkViewport {0.f, 0.f, (float)width, (float)height, 0.f, 1.f});
         command_manager.SetScissor(VkRect2D {{0, 0}, {width, height}});
 
-        auto                      vertex_buffer            = m_screen_mesh->GetBuffer(Vertex_Buffer);
-        auto                      vertex_count             = m_screen_mesh->getVertexCount();
+        auto vertex_buffer = m_pass_info->render_resources->screen_mesh->GetBuffer(Vertex_Buffer);
+        auto vertex_count  = m_pass_info->render_resources->screen_mesh->getVertexCount();
+
         std::vector<VkBuffer>     bind_vertex_buffers      = {vertex_buffer, vertex_buffer};
         std::vector<VkDeviceSize> bind_vertex_attr_offsets = {0, vertex_count * sizeof(float) * 3};
         command_manager.Bind(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bind_vertex_buffers, bind_vertex_attr_offsets);
