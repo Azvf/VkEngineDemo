@@ -384,17 +384,21 @@ namespace Chandelier {
             sourceStage, destinationStage, std::vector<VkImageMemoryBarrier> {barrier});
     }
 
-    std::vector<VkBufferImageCopy> VKContext::BuildCopyRegions(Buffer* buffer, Texture* texture)
+
+    void VKContext::CopyBufferToTexture(Buffer* buffer, Texture* texture, uint32_t layer, uint32_t mip_level)
     {
         VkDeviceSize buffer_size = buffer->GetBufferSize();
 
-        size_t       pixel_byte_size = TextureFormatToByteSize(texture->getFormat());
-        VkDeviceSize tex_size        = texture->getWidth() * texture->getHeight() * texture->getLayers() * pixel_byte_size;
+        uint32_t copy_width  = texture->getWidth() * std::pow(0.5, mip_level);
+        uint32_t copy_height = texture->getHeight() * std::pow(0.5, mip_level);
 
-        if (buffer_size != tex_size)
-        {
-            ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
-        }
+        size_t       pixel_byte_size = TextureFormatToByteSize(texture->getFormat());
+        VkDeviceSize tex_size        = copy_width * copy_height * pixel_byte_size;
+
+        // if (buffer_size != tex_size)
+        // {
+        //     ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
+        // }
 
         VkBufferImageCopy region = {};
         region.bufferOffset      = 0;
@@ -402,26 +406,45 @@ namespace Chandelier {
         region.bufferImageHeight = 0;
 
         region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel       = 0;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount     = texture->getLayers();
+        region.imageSubresource.mipLevel       = mip_level;
+        region.imageSubresource.baseArrayLayer = layer;
+        region.imageSubresource.layerCount     = 1;
 
         region.imageOffset = {0, 0, 0};
-        region.imageExtent = {texture->getWidth(), texture->getHeight(), 1};
+        region.imageExtent = {copy_width, copy_height, 1};
 
-        return std::vector<VkBufferImageCopy> {region};
+        m_command_manager.Copy(buffer, texture, std::vector<VkBufferImageCopy> {region});
     }
 
-    void VKContext::CopyBufferToTexture(Buffer* buffer, Texture* texture)
+    void VKContext::CopyTextureToBuffer(Texture* texture, Buffer* buffer, uint32_t layer, uint32_t mip_level)
     {
-        auto regions = BuildCopyRegions(buffer, texture);
-        m_command_manager.Copy(buffer, texture, regions);
-    }
+        VkDeviceSize buffer_size = buffer->GetBufferSize();
+        
+        uint32_t     copy_width  = texture->getWidth() * std::pow(0.5, mip_level);
+        uint32_t     copy_height = texture->getHeight() * std::pow(0.5, mip_level);
+        
+        size_t       pixel_byte_size = TextureFormatToByteSize(texture->getFormat());
+        VkDeviceSize tex_size        = copy_width * copy_height * pixel_byte_size;
 
-    void VKContext::CopyTextureToBuffer(Texture* texture, Buffer* buffer)
-    {
-        auto regions = BuildCopyRegions(buffer, texture);
-        m_command_manager.Copy(texture, buffer, regions);
+        // if (buffer_size != tex_size)
+        // {
+        //     ENGINE_THROW_ERROR("buffer size and texture size not match", EngineCode::Buffer_Size_Not_Match);
+        // }
+
+        VkBufferImageCopy region = {};
+        region.bufferOffset      = 0;
+        region.bufferRowLength   = 0;
+        region.bufferImageHeight = 0;
+
+        region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel       = mip_level;
+        region.imageSubresource.baseArrayLayer = layer;
+        region.imageSubresource.layerCount     = 1;
+
+        region.imageOffset = {0, 0, 0};
+        region.imageExtent   = {copy_width, copy_height, 1};
+
+        m_command_manager.Copy(texture, buffer, std::vector<VkBufferImageCopy> {region});
     }
 
     void VKContext::FlushMappedBuffers(std::vector<Buffer*> mapped_buffers) {

@@ -53,6 +53,7 @@ namespace Chandelier
         void Copy(Texture* src_texture, Buffer* dst_buffer, const std::vector<VkBufferImageCopy>& regions);
         void Copy(Buffer* src_buffer, Texture* dst_texture, const std::vector<VkBufferImageCopy>& regions);
         void Copy(Buffer* src_buffer, Buffer* dst_buffer, const std::vector<VkBufferCopy>& regions);
+        void Copy(Texture* src_texture, Texture* dst_texture, const std::vector<VkImageCopy>& regions);
 
         void Blit(VkImage                         src_image,
                   VkImageLayout                   src_layout,

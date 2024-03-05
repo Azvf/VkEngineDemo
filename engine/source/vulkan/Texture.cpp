@@ -177,8 +177,7 @@ namespace Chandelier
         image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
         image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         image_info.usage         = m_usage;
-        image_info.samples =
-            (m_is_attachment_texture && m_use_msaa) ? m_context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
+        image_info.samples       = m_use_msaa ? m_context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
         image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
 
         VULKAN_API_CALL(vkCreateImage(device, &image_info, nullptr, &m_image));
@@ -219,11 +218,12 @@ namespace Chandelier
     void Texture::InitAttachment(std::shared_ptr<VKContext> context,
                                  int                        width,
                                  int                        height,
+                                 int                        mip_levels,
                                  VkFormat                   format,
                                  VkImageUsageFlags          usage,
                                  bool                       use_msaa)
     {
-        m_is_attachment_texture = true;
+        m_tex_type              = Render_Target_Texture;
         m_use_msaa              = use_msaa;
         VkClearColorValue        color;
         VkClearDepthStencilValue depthStencil;
@@ -235,7 +235,7 @@ namespace Chandelier
         {
             m_clear_value.emplace(VkClearValue({0.0f, 0.0f, 0.0f, 1.0f}));
         }
-        InitTex2D(context, width, height, 1, 1, format, usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        InitTex2D(context, width, height, 1, mip_levels, format, usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
     void Texture::InitTex2D(std::shared_ptr<VKContext> context,
@@ -276,20 +276,18 @@ namespace Chandelier
         assert(0);
     }
 
-    void Texture::InitCubeMap(std::shared_ptr<VKContext> context,
-                              int                        width,
-                              int                        layers,
+        void Texture::InitCubeMap(std::shared_ptr<VKContext> context,
+                              int                        side_lenth,
                               int                        mip_len,
                               VkFormat                   format,
                               VkImageUsageFlags          usage)
     {
-        assert(0 && "wip, not tested");
         m_context = context;
         m_cube    = true;
 
-        m_width  = width;
-        m_height = width;
-        m_layers = std::max(layers, 1) * 6;
+        m_width  = side_lenth;
+        m_height = side_lenth;
+        m_layers = 6;
 
         int mip_len_max = 1 + floorf(log2f(std::max(m_width, m_height)));
         m_mip_levels    = std::min(mip_len, mip_len_max);
@@ -298,7 +296,7 @@ namespace Chandelier
         m_layout        = VK_IMAGE_LAYOUT_UNDEFINED;
         m_usage         = usage;
         m_mem_props     = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-        
+
         InternalInit();
     }
 
@@ -347,36 +345,65 @@ namespace Chandelier
         m_context->CopyBufferToTexture(staging_buffer.get(), this);
 
         m_context->GetCommandManager().Submit();
+
+        m_tex_type = Asset_Texture;
     }
 
     void Texture::Sync(std::vector<std::shared_ptr<Texture>> textures) {
-        auto staging_buffer = std::make_unique<Buffer>();
+        // auto staging_buffer = std::make_unique<Buffer>();
+        // 
+        // size_t       image_layer_size = GetLayerByteSize();
+        // VkDeviceSize data_size        = m_cube ? image_layer_size * 6 : image_layer_size;
+        // staging_buffer->Allocate(m_context,
+        //                          data_size,
+        //                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        //                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        //                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+        // 
+        // staging_buffer->map();
+        // 
+        // size_t offset = {};
+        // for (auto& texture : textures)
+        // {
+        //     const uint8_t* data = texture->Data();
+        //     size_t         size = texture->GetLayerByteSize();
+        // 
+        //     staging_buffer->Update(data, size, 0, offset);
+        //     
+        //     offset += size;
+        // }
+        // 
+        // staging_buffer->Flush();
+        // staging_buffer->unmap();
+        // 
+        // for (int layer = 0; layer < 6; layer++)
+        // {
+        //     m_context->CopyBufferToTexture(staging_buffer.get(), this, layer, 0);
+        // }
 
-        size_t       image_layer_size = GetLayerByteSize();
-        VkDeviceSize data_size        = m_cube ? image_layer_size * 6 : image_layer_size;
-        staging_buffer->Allocate(m_context,
-                                 data_size,
-                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-
-        staging_buffer->map();
-
-        size_t offset = {};
-        for (auto& texture : textures)
+        auto& command_manager = m_context->GetCommandManager();
+        for (int layer = 0; layer < 6; layer++)
         {
-            const uint8_t* data = texture->Data();
-            size_t         size = texture->GetLayerByteSize();
-
-            staging_buffer->Update(data, size, 0, offset);
+            VkImageCopy copy_region = {};
             
-            offset += size;
+            copy_region.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy_region.srcSubresource.baseArrayLayer = 0;
+            copy_region.srcSubresource.mipLevel       = 0;
+            copy_region.srcSubresource.layerCount     = 1;
+            copy_region.srcOffset                     = {0, 0, 0};
+            
+            copy_region.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy_region.dstSubresource.baseArrayLayer = layer;
+            copy_region.dstSubresource.mipLevel       = 0;
+            copy_region.dstSubresource.layerCount     = 1;
+            copy_region.dstOffset                     = {0, 0, 0};
+            
+            copy_region.extent.width  = m_width;
+            copy_region.extent.height = m_height;
+            copy_region.extent.depth  = 1;
+
+            command_manager.Copy(textures[layer].get(), this, std::vector<VkImageCopy> {copy_region});
         }
-
-        staging_buffer->Flush();
-        staging_buffer->unmap();
-
-        m_context->CopyBufferToTexture(staging_buffer.get(), this);
 
         m_context->GetCommandManager().Submit();
     }
@@ -421,12 +448,12 @@ namespace Chandelier
         return data_size;
     }
 
-    const uint8_t* Texture::Data()
+    const uint8_t* Texture::Data(uint32_t layer, uint32_t mip_level)
     {
         /**
          * @info: attachment texture needs to stage gpu memory to cpu, normal texture just return the memory from cpu
          */
-        if (!m_is_attachment_texture)
+        if (m_tex_type == Asset_Texture)
         {
             return m_data;
         }
@@ -435,7 +462,10 @@ namespace Chandelier
         {
             m_buffer = std::make_shared<Buffer>();
         
-            VkDeviceSize data_size = GetLayerByteSize() * m_layers;
+            /**
+             * @info: for now just map 1 layer so just set the size as miplevel 0 layer size
+             */
+            VkDeviceSize data_size = GetLayerByteSize();
             m_buffer->Allocate(m_context,
                                data_size,
                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -448,10 +478,11 @@ namespace Chandelier
         /**
          * @todo: caching, just return the mapped data if texture is not updated 
          */
-        if (!m_buffer->IsMapped())
+        if (m_buffer->IsMapped())
         {
-            m_context->CopyTextureToBuffer(this, m_buffer.get());
+            m_buffer->unmap();
         }
+        m_context->CopyTextureToBuffer(this, m_buffer.get(), layer, mip_level);
         
         /**
          * @info: blocking on cpu so we don't get empty data on memory 

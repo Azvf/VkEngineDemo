@@ -12,6 +12,13 @@ namespace Chandelier
     
     using TexturePtr = std::shared_ptr<Texture>;
 
+    enum TextureType : uint8_t
+    {
+        Generated_Texture     = 0,
+        Asset_Texture         = 1,
+        Render_Target_Texture = 2,
+    };
+
     class Texture 
     {
     public:
@@ -36,7 +43,7 @@ namespace Chandelier
         uint32_t      getLayers() const;
         VkImageLayout getLayout() const;
 
-        const uint8_t* Data();
+        const uint8_t* Data(uint32_t layer = 0, uint32_t mip_level = 0);
 
         size_t GetLayerByteSize();
         
@@ -47,6 +54,7 @@ namespace Chandelier
         void InitAttachment(std::shared_ptr<VKContext> context,
                             int                        width,
                             int                        height,
+                            int                        mip_levels,
                             VkFormat                   format,
                             VkImageUsageFlags          usage,
                             bool                       use_msaa = false);
@@ -69,8 +77,7 @@ namespace Chandelier
                        VkImageUsageFlags          usage);
 
         void InitCubeMap(std::shared_ptr<VKContext> context,
-                         int                        width,
-                         int                        layers,
+                         int                        side_lenth,
                          int                        mip_len,
                          VkFormat                   format,
                          VkImageUsageFlags          usage);
@@ -144,7 +151,8 @@ namespace Chandelier
 
         bool m_cube = false;
 
-        bool m_is_attachment_texture = false;
+        // bool m_is_attachment_texture = false;
+        TextureType m_tex_type = Generated_Texture;
 
         bool m_use_msaa = false;
 

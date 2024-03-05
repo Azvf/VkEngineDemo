@@ -11,6 +11,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
 
+#include "render/base/common_vao_defines.h"
 #include "runtime/framework/config_manager/config_manager.h"
 
 #include "VkUtil.h"
@@ -43,13 +44,18 @@ namespace Chandelier
         return std::filesystem::absolute(relative_path);
     }
 
-    struct MeshVertexDataDefinition
+    std::shared_ptr<Mesh> LoadDefaultMesh(std::shared_ptr<VKContext> context, DefaultMeshType mesh_type)
     {
-        float x, y, z;    // position
-        float nx, ny, nz; // normal
-        float tx, ty, tz; // tangent
-        float u, v;       // UV coordinates
-    };
+        if (mesh_type == Screen_Mesh)
+        {
+            return Mesh::load(context, Has_UV, ScreenVertices.data(), ScreenVertices.size(), nullptr, 0);
+        }
+        else if (mesh_type == Cube_Mesh)
+        {
+            return Mesh::load(context, Has_Normal | Has_UV, CubeVertices.data(), CubeVertices.size(), nullptr, 0);
+        }
+        return nullptr;
+    }
 
     std::shared_ptr<Mesh> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename)
     {
@@ -365,6 +371,10 @@ namespace Chandelier
         
         texture->Sync(face_vec);
 
+        /**
+         * @todo: in generate processes target texture already transfered to perferred layout, 
+         * right now we don't care about faces cause they're gonna get destroyed
+         */
         context->GenerateMipMaps(texture.get(), cubemap_miplevels);
 
         return texture;
@@ -414,13 +424,11 @@ namespace Chandelier
         return texture;
     }
 
-    void SaveTexture(std::shared_ptr<Texture> texture,
-                     std::string_view         path,
-                     uint32_t                 framebuffer_index,
-                     uint32_t                 attachment_index)
+    void SaveTexture(std::shared_ptr<Texture> texture, std::string_view path, uint32_t layer, uint32_t mip_level)
     {
-        const uint8_t* pixels = texture->Data();
-        uint32_t       width = texture->getWidth(), height = texture->getHeight();
+        const uint8_t* pixels   = texture->Data(layer, mip_level);
+        uint32_t       width    = texture->getWidth() * std::pow(0.5, mip_level);
+        uint32_t       height   = texture->getHeight() * std::pow(0.5, mip_level);
         uint32_t       channels = 4;
         int            result   = stbi_write_png(path.data(), width, height, channels, pixels, width * channels);
         assert(result);

@@ -297,6 +297,19 @@ namespace Chandelier
         command_buffer.CommandRecorded();
     }
 
+    void CommandBufferManager::Copy(Texture* src_texture, Texture* dst_texture, const std::vector<VkImageCopy>& regions)
+    {
+        CommandBuffer& command_buffer = GetCommandBuffer(DataTransferCompute);
+        vkCmdCopyImage(command_buffer.Handle(),
+                       src_texture->getImage(),
+                       src_texture->getLayout(),
+                       dst_texture->getImage(),
+                       dst_texture->getLayout(),
+                       regions.size(),
+                       regions.data());
+        command_buffer.CommandRecorded();
+    }
+
     void CommandBufferManager::Blit(Texture* src_tex, Texture* dst_tex, const std::vector<VkImageBlit>& regions)
     {
         Blit(src_tex->getImage(),

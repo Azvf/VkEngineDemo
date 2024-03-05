@@ -77,9 +77,30 @@ namespace Chandelier
         Linear_Color_Space
     };
 
+    struct RenderResources
+    {
+        std::vector<std::shared_ptr<Texture>> model_tex_vec;
+        std::vector<std::shared_ptr<Mesh>>    model_mesh_vec;
+        std::shared_ptr<Texture>              skybox_cubemap;
+        std::shared_ptr<Texture>              skybox_prefilter_cubemap;
+        std::shared_ptr<Texture>              skybox_irradiance_cubemap;
+        std::shared_ptr<Texture>              brdf_lut;
+        std::shared_ptr<Mesh>                 screen_mesh;
+        std::shared_ptr<Mesh>                 cube_mesh;
+    };
+
+    enum DefaultMeshType
+    {
+        Screen_Mesh = 0,
+        Cube_Mesh,
+
+    };
+
     extern std::filesystem::path GetFullPath(std::string_view relative_path);
 
     extern std::shared_ptr<Mesh> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename);
+
+    extern std::shared_ptr<Mesh> LoadDefaultMesh(std::shared_ptr<VKContext> context, DefaultMeshType mesh_type);
 
     extern std::shared_ptr<Texture> LoadTexture(std::shared_ptr<VKContext> context, std::string_view path, ColorSpace color_space);
 
@@ -91,10 +112,7 @@ namespace Chandelier
     extern std::shared_ptr<Texture>
     LoadSkybox(std::shared_ptr<VKContext> context, std::array<std::shared_ptr<Texture>, 6> faces, int desired_channels);
 
-    extern void SaveTexture(std::shared_ptr<Texture> texture,
-                            std::string_view         path,
-                            uint32_t                 framebuffer_index,
-                            uint32_t                 attachment_index);
-    
+    extern void
+    SaveTexture(std::shared_ptr<Texture> texture, std::string_view path, uint32_t layer, uint32_t mip_level);    
 
 } // namespace Chandelier
