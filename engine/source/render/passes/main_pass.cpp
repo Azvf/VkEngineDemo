@@ -576,7 +576,7 @@ namespace Chandelier
                     cubemap_prefilter_pass->UpdateUniformBuffer(prefilter_ubo);
                     runner.Run();
                     std::string filename = "cubemap_prefilter_mip_" + std::to_string(mip_level) + "_layer_" +
-                                           std::to_string(layer) + ".png";
+                                           std::to_string(layer) + ".hdr";
                     // runner.Save(filename);
 
                     auto prefilter_attachment = cubemap_prefilter_pass->GetAttachment(0, 0);
@@ -610,7 +610,7 @@ namespace Chandelier
 
                     prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-                    SaveTexture(m_pass_info->render_resources->skybox_prefilter_cubemap, filename, layer, mip_level);
+                    SaveHDRTexture(m_pass_info->render_resources->skybox_prefilter_cubemap, filename, layer, mip_level);
                 }
             }
             // command_manager.Submit();
@@ -638,7 +638,7 @@ namespace Chandelier
                 irradiance_convolution_pass->UpdateUniformBuffer(prefilter_ubo);
 
                 runner.Run();
-                // std::string filename = "irradiance_map_" + std::to_string(i) + ".png";
+                std::string filename = "irradiance_map_" + std::to_string(layer) + ".hdr";
                 // runner.Save(filename);
 
                 auto irradiance_attachment = irradiance_convolution_pass->GetAttachment(0, 0);
@@ -669,8 +669,9 @@ namespace Chandelier
 
                 irradiance_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                SaveHDRTexture(m_pass_info->render_resources->skybox_irradiance_cubemap, filename, layer, 0);
             }
-            command_manager.Submit();
+            // command_manager.Submit();
         }
         #endif
     }

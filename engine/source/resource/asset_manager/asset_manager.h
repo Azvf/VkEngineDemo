@@ -113,6 +113,10 @@ namespace Chandelier
     LoadSkybox(std::shared_ptr<VKContext> context, std::array<std::shared_ptr<Texture>, 6> faces, int desired_channels);
 
     extern void
-    SaveTexture(std::shared_ptr<Texture> texture, std::string_view path, uint32_t layer, uint32_t mip_level);    
+    SaveTexture(std::shared_ptr<Texture> texture, std::string_view path, uint32_t layer, uint32_t mip_level);
+
+    extern void
+    SaveHDRTexture(std::shared_ptr<Texture> texture, std::string_view path, uint32_t layer, uint32_t mip_level);
+
 
 } // namespace Chandelier

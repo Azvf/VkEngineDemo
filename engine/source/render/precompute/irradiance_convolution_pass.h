@@ -5,6 +5,10 @@
 
 namespace Chandelier
 {
+#define IRRADIANCE_ATTACHMENT_FORMAT VK_FORMAT_R32G32B32A32_SFLOAT
+#define IRRADIANCE_MAP_WIDTH 256
+#define IRRADIANCE_MAP_HEIGHT 256
+
     struct IrradianceConvolutionPassUniformBuffer
     {
         glm::mat4 view;

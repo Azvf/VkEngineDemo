@@ -18,7 +18,6 @@ namespace Chandelier
     auto& context         = m_pass_info->render_context.vk_context; \
     auto& swapchain       = context->GetSwapchain(); \
     auto& command_manager = context->GetCommandManager();
-#define IRRADIANCE_ATTACHMENT_FORMAT VK_FORMAT_R8G8B8A8_SRGB
 
     IrradianceConvolutionPass::~IrradianceConvolutionPass() { UnInit(); }
 

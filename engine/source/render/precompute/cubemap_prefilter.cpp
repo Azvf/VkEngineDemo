@@ -19,8 +19,6 @@ namespace Chandelier
     auto& context         = m_pass_info->render_context.vk_context; \
     auto& command_manager = context->GetCommandManager();
 
-#define PREFILTER_ATTACHMENT_FORMAT VK_FORMAT_R8G8B8A8_SRGB
-
     CubeMapPrefilterPass::~CubeMapPrefilterPass() { UnInit(); }
 
     void CubeMapPrefilterPass::Initialize(std::shared_ptr<BaseRenderPassInitInfo> info)

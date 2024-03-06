@@ -107,7 +107,7 @@ namespace Chandelier
     {
         assert(m_image != VK_NULL_HANDLE);
 
-        // fixme
+        // @todo: fixme
         VkImageAspectFlags aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
 
         VkImageMemoryBarrier barrier = {};
@@ -276,7 +276,7 @@ namespace Chandelier
         assert(0);
     }
 
-        void Texture::InitCubeMap(std::shared_ptr<VKContext> context,
+    void Texture::InitCubeMap(std::shared_ptr<VKContext> context,
                               int                        side_lenth,
                               int                        mip_len,
                               VkFormat                   format,

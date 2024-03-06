@@ -434,4 +434,14 @@ namespace Chandelier
         assert(result);
     }
 
+    void SaveHDRTexture(std::shared_ptr<Texture> texture, std::string_view path, uint32_t layer, uint32_t mip_level)
+    {
+        const float*   pixels   = (float*)texture->Data(layer, mip_level);
+        uint32_t       width    = texture->getWidth() * std::pow(0.5, mip_level);
+        uint32_t       height   = texture->getHeight() * std::pow(0.5, mip_level);
+        uint32_t       channels = 4;
+        int            result   = stbi_write_hdr(path.data(), width, height, channels, pixels);
+        assert(result);
+    }
+
 }

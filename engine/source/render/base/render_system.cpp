@@ -10,6 +10,7 @@
 #include "render/passes/ui_pass.h"
 #include "render/precompute/brdf_lut.h"
 #include "render/precompute/cubemap_prefilter.h"
+#include "render/precompute/irradiance_convolution_pass.h"
 
 #include "VkContext.h"
 #include "Texture.h"
@@ -172,7 +173,7 @@ namespace Chandelier
                     m_context,
                     CUBEMAP_PREFILTER_BASE_WIDTH,
                     CUBEMAP_PREFILTER_MIP_LEVEL,
-                    VK_FORMAT_R8G8B8A8_UNORM,
+                    PREFILTER_ATTACHMENT_FORMAT,
                     VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
                 m_render_resources->skybox_prefilter_cubemap->TransferLayout(VK_IMAGE_LAYOUT_UNDEFINED,
@@ -192,9 +193,9 @@ namespace Chandelier
 
                 m_render_resources->skybox_irradiance_cubemap->InitCubeMap(
                     m_context,
-                    CUBEMAP_PREFILTER_BASE_WIDTH,
-                    CUBEMAP_PREFILTER_MIP_LEVEL,
-                    VK_FORMAT_R8G8B8A8_UNORM,
+                    IRRADIANCE_MAP_WIDTH,
+                    IRRADIANCE_MAP_HEIGHT,
+                    IRRADIANCE_ATTACHMENT_FORMAT,
                     VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
                 m_render_resources->skybox_irradiance_cubemap->TransferLayout(VK_IMAGE_LAYOUT_UNDEFINED,
