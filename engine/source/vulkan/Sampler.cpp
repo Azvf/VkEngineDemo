@@ -49,7 +49,7 @@ namespace Chandelier
                 (context->getDeviceFeatures().features.samplerAnisotropy == VK_TRUE))
             {
                 sampler_info.anisotropyEnable = VK_TRUE;
-                sampler_info.maxAnisotropy    = 1.0f;
+                sampler_info.maxAnisotropy    = 16.0f;
             }
         }
         else if (sampler_state.type == GPU_SAMPLER_STATE_TYPE_CUSTOM)

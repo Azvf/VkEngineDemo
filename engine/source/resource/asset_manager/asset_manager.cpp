@@ -308,11 +308,12 @@ namespace Chandelier
                            1,
                            1,
                            format,
-                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        texture->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        texture->TransferLayout(VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                 0,
                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -320,10 +321,11 @@ namespace Chandelier
         
         texture->Sync(reinterpret_cast<const uint8_t*>(pixels));
         
-        texture->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        texture->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
                                 VK_ACCESS_TRANSFER_WRITE_BIT,
-                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
+                                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                 0);
         
         context->GetCommandManager().Submit();
@@ -401,8 +403,8 @@ namespace Chandelier
                            1,
                            1,
                            format,
-                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         texture->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,

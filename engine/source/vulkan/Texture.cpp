@@ -196,7 +196,7 @@ namespace Chandelier
 
         m_view_type = (m_cube) ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
 
-        VkImageAspectFlags aspect_flags = ConvertToAspectFlags(m_usage);
+        VkImageAspectFlags aspect_flags = GetAspectFlags();
 
         VkImageView           view;
         VkImageViewCreateInfo view_info = {};
@@ -227,7 +227,16 @@ namespace Chandelier
         m_use_msaa              = use_msaa;
         VkClearColorValue        color;
         VkClearDepthStencilValue depthStencil;
+        
+        /**
+         * @warning: if the clear value is set incorrectly, the depth map will not show proper drawn image
+         * and the validtion layer won't emit warning even if a depth attachment's got a color attachment clear value
+         */
         if (format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+        {
+            m_clear_value.emplace(VkClearValue({1.0, 0.0}));
+        }
+        else if (format == VK_FORMAT_D16_UNORM || format == VK_FORMAT_D32_SFLOAT)
         {
             m_clear_value.emplace(VkClearValue({1.0, 0.0}));
         }
@@ -414,7 +423,7 @@ namespace Chandelier
         return m_view.value();
     }
 
-    VkImageAspectFlags Texture::ConvertToAspectFlags(VkImageUsageFlags usage)
+    VkImageAspectFlags Texture::GetAspectFlags()
     {
         VkImageAspectFlags aspect_flags;
         if (m_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
@@ -423,7 +432,18 @@ namespace Chandelier
         }
         else if (m_usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
         {
-            aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+            if (m_format == VK_FORMAT_D24_UNORM_S8_UINT || m_format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+            {
+                aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+            }
+            else if (m_format == VK_FORMAT_D16_UNORM || m_format == VK_FORMAT_D32_SFLOAT)
+            {
+                aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT;
+            }
+            else
+            {
+                assert(0);
+            }
         }
         else if (m_usage & VK_IMAGE_USAGE_SAMPLED_BIT)
         {

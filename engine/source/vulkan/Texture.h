@@ -116,7 +116,7 @@ namespace Chandelier
 
         void InternalInit();
 
-        VkImageAspectFlags ConvertToAspectFlags(VkImageUsageFlags usage);
+        VkImageAspectFlags GetAspectFlags();
 
     private:
         std::shared_ptr<VKContext> m_context;
