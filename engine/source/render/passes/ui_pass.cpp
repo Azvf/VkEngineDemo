@@ -268,7 +268,7 @@ namespace Chandelier {
 		{
             int& display_texture_index = main_pass_ubo->config.display_texture;
             std::vector<std::string> texture_string_names {
-                "None", "BaseColor", "Normal", "Height", "Metallic", "Roughness", "UV"};
+                "None", "BaseColor", "Normal", "AO", "Metallic", "Roughness", "UV"};
 
             ImGui::Combo("Display Map",
                          &display_texture_index,
