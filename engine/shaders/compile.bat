@@ -13,4 +13,6 @@ glslc.exe cubemap_prefilter_gen.frag -o generated/cubemap_prefilter_gen_frag.spv
 glslc.exe cubemap.vert -o generated/irradiance_convolution_vert.spv
 glslc.exe irradiance_convolution.frag -o generated/irradiance_convolution_frag.spv
 
+glslc.exe shadowmap.vert -o generated/shadowmap_vert.spv
+
 pause

@@ -16,6 +16,18 @@ layout(location = 0) in vec4 in_ray;
 
 layout(location = 0) out vec4 frag_color;
 
+vec3 prefilteredReflection(float mip_level)
+{
+	const float MAX_REFLECTION_LOD = 4.0; // todo: param/const
+	mip_level = clamp(mip_level, 0.0, MAX_REFLECTION_LOD);
+	float lodf = floor(mip_level);
+	float lodc = ceil(mip_level);
+	vec3 R = in_ray.xyz / in_ray.w;
+	vec3 a = textureLod(skybox_prefilter_sampler, R, lodf).rgb;
+	vec3 b = textureLod(skybox_prefilter_sampler, R, lodc).rgb;
+	return mix(a, b, mip_level - lodf);
+}
+
 void main() 
 {
 	if (ubo.show_skybox_index == 0) {
@@ -23,13 +35,11 @@ void main()
 		return;
 	} else if (ubo.show_skybox_index == 1) {
 		frag_color = vec4(textureLod(skybox_sampler, in_ray.xyz / in_ray.w, 0.0).rgb, 1.0);
-		// // gamma correction
-		// frag_color = GammaCorrection(frag_color, 2.2);
 	}
 	 else if (ubo.show_skybox_index == 2) {
 		frag_color = vec4(textureLod(skybox_irradiance_sampler, in_ray.xyz / in_ray.w, 0.0).rgb, 1.0);
 	} else if (ubo.show_skybox_index == 3) {
-		float lod = ubo.skybox_prefilter_mip_level;
-		frag_color = vec4(textureLod(skybox_prefilter_sampler, in_ray.xyz / in_ray.w, lod).rgb, 1.0);
+		float mip_level = ubo.skybox_prefilter_mip_level;
+		frag_color = vec4(prefilteredReflection(mip_level), 1.0);
 	}
 }

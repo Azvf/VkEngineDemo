@@ -67,6 +67,22 @@ vec3 PiccoloRadiance(PointLight light, vec3 position, vec3 N, vec3 L) {
     return radiance;
 }
 
+vec3 prefilteredReflection(vec3 R, float roughness)
+{
+	const float MAX_REFLECTION_LOD = 4.0; // todo: param/const
+	float lod = roughness * MAX_REFLECTION_LOD;
+	float lodf = floor(lod);
+	float lodc = ceil(lod);
+	vec3 a = textureLod(skybox_prefilter_sampler, R, lodf).rgb;
+	vec3 b = textureLod(skybox_prefilter_sampler, R, lodc).rgb;
+	return mix(a, b, lod - lodf);
+}
+
+vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
+{
+	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 void main() 
 {
     if (ubo.config.display_texture == 1) {
@@ -124,28 +140,49 @@ void main()
         vec3 radiance = PiccoloRadiance(ubo.lights.point_lights[i], in_world_position, N, L);
 #endif
 
-        // Lo += BRDF(N, V, L, base_color, metallic, roughness, ao) * light_intensity * max(dot(N, L), 0.0);
         Lo += BRDF(N, V, L, base_color, metallic, roughness, ao) * radiance;
     }
     
-    // // image based lighting
-    // {
-    //     vec3 irradiance = texture(skybox_irradiance_sampler, N).rgb;
-    //     vec3 fd    = irradiance * base_color;
+    // image based lighting
+    {
+        vec3 irradiance = texture(skybox_irradiance_sampler, N).rgb;
+        vec3 fd    = irradiance * base_color;
 
-    //     vec3 F0 = GetF0(base_color, metallic);
-    //     vec3 F = FrR(NdotV, F0, roughness);
-    //     vec2 brdf_lut = texture(brdf_lut_sampler, vec2(max(NdotV, 0.0), roughness)).rg;
+        vec3 F0 = GetF0(base_color, metallic);
+        vec3 F = FrR(NdotV, F0, roughness);
+        vec2 brdf_lut = texture(brdf_lut_sampler, vec2(max(NdotV, 0.0), roughness)).rg;
 
-    //     float lod        = roughness * MAX_LOD_LEVEL;
-    //     vec3  prefiltered_color = textureLod(skybox_prefilter_sampler, R, lod).rgb;
-    //     vec3  fs   = prefiltered_color * (F * brdf_lut.x + brdf_lut.y);
+        vec3  prefiltered_color = prefilteredReflection(R, roughness);
+        vec3  fs   = prefiltered_color * (F * brdf_lut.x + brdf_lut.y);
         
-    //     vec3 kS = F;
-    //     vec3 kD = 1.0 - kS;
-    //     kD *= 1.0 - metallic;
-    //     Libl = (kD * fd + fs);
-    // }
+        vec3 kS = F;
+        vec3 kD = 1.0 - kS;
+        kD *= 1.0 - metallic;
+        Libl = (kD * fd + fs);
+        // Libl = (fs);
+    }
+
+#if 0
+    {
+        vec2 brdf = texture(brdf_lut_sampler, vec2(max(dot(N, V), 0.0), roughness)).rg;
+        vec3 reflection = prefilteredReflection(R, roughness).rgb;	
+        vec3 irradiance = texture(skybox_irradiance_sampler, N).rgb;
+
+        // Diffuse based on irradiance
+        vec3 diffuse = irradiance * base_color;	
+        vec3 F0 = vec3(0.04); 
+        F0 = mix(F0, base_color, metallic);
+        vec3 F = F_SchlickR(max(dot(N, V), 0.0), F0, roughness);
+
+        // Specular reflectance
+        vec3 specular = reflection * (F * brdf.x + brdf.y);
+
+        // Ambient part
+        vec3 kD = 1.0 - F;
+        kD *= 1.0 - metallic;	  
+        Libl = (kD * diffuse + specular);
+    }
+#endif
 
     frag_color = vec4(Lo + Libl, 1.0);
 
