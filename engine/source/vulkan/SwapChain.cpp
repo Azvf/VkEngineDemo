@@ -28,6 +28,11 @@ namespace Chandelier
     {
         Vector2i size = m_window_system->GetFramebufferSize();
 
+        if (size.x == 0 && size.y == 0)
+        {
+            return;
+        }
+
         const auto& phy_device = m_context->getPhysicalDevice();
         const auto& device     = m_context->getDevice();
         const auto& surface    = m_context->getSurface();

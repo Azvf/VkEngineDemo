@@ -12,7 +12,7 @@ namespace Chandelier
     {
         g_context.StartSystems("config path");
 
-        m_window_system = std::make_shared<WindowSystem>(Vector2i {1280, 720}, "tiny engine");
+        m_window_system = std::make_shared<WindowSystem>(Vector2i {1920, 1080}, "tiny engine");
         m_window_system->Initialize();
 
         m_render_system = std::make_shared<RenderSystem>();
@@ -30,9 +30,9 @@ namespace Chandelier
     {
         while (!m_window_system->ShouldClose())
         {
+            m_window_system->PollEvents();
             if (!m_window_system->IsIconified())
             {
-                m_window_system->PollEvents();
                 m_render_system->Render();
             }
         }
