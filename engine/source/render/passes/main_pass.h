@@ -7,6 +7,7 @@
 namespace Chandelier
 {
     class Buffer;
+    class ShadowmapPass;
 
     /**
      * @todo: refactor camera class and move it there
@@ -78,7 +79,9 @@ namespace Chandelier
 
         void UpdateUniformBuffer(const MainPassUniformBuffer& uniform_buffer);
 
-        void ForwardDraw(std::vector<std::shared_ptr<RenderPass>> subpasses);
+        void ForwardDraw(const std::vector<std::shared_ptr<RenderPass>>& subpasses);
+
+        void SetShadowMapPass(std::shared_ptr<RenderPass> shadowmap_pass);
 
     private:
         void SetupUniformBuffer();
@@ -116,6 +119,8 @@ namespace Chandelier
         std::shared_ptr<DescriptorTracker> m_desc_tracker;
 
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
+
+        std::shared_ptr<RenderPass> m_shadowmap_pass;
     };
 
 } // namespace Chandelier

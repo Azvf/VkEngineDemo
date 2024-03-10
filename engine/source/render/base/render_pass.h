@@ -15,20 +15,23 @@ namespace Chandelier
 
     enum eAttachment : uint8_t
     {
-        Color_Attachment        = 0,
-        DepthStencil_Attachment = 1,
-        // Skybox_Attachment       = 2,
-        // UI_Attachment           = 3,
-        // Anti_Aliasing_Attachment= 4,
+        Shadowmap_Attachment    = 0,
+        Color_Attachment        = 1,
+        DepthStencil_Attachment = 2,
         Attachment_Max_Count,
         Resolve_Attachment = Attachment_Max_Count
     };
 
+    /**
+     * @todo: just listed the main pass and the dependent subpasses, 
+     * do the render pass management later
+     */
     enum eRenderPass : uint8_t
     {
-        Main_Pass   = 0,
-        Skybox_Pass = 1,
-        UI_Pass     = 2,
+        Shadowmap_Pass = 0,
+        Main_Pass      = 1,
+        Skybox_Pass    = 2,
+        UI_Pass        = 3,
         Render_Pass_Count,
     };
     

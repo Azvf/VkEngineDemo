@@ -9,6 +9,8 @@
 #include "runtime/framework/global/global_context.h"
 #include "render/base/common_vao_defines.h"
 #include "render/base/render_pass_runner.h"
+
+#include "shadowmap_pass.h"
 #include "precompute/brdf_lut.h"
 #include "precompute/cubemap_prefilter.h"
 #include "precompute/irradiance_convolution_pass.h"
@@ -116,6 +118,7 @@ namespace Chandelier
                 attachment = std::make_shared<Texture>();
             }
 
+            auto& shadowmap_attachment     = m_framebuffers[i].attachments[Shadowmap_Attachment];
             auto& color_attachment         = m_framebuffers[i].attachments[Color_Attachment];
             auto& depth_stencil_attachment = m_framebuffers[i].attachments[DepthStencil_Attachment];
 
@@ -138,6 +141,16 @@ namespace Chandelier
                                                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
                                                          VK_IMAGE_USAGE_SAMPLED_BIT,
                                                      enable_msaa);
+
+            shadowmap_attachment->InitAttachment(context,
+                                                 width,
+                                                 height,
+                                                 1,
+                                                 SHADOWMAP_DEPTH_FORMAT,
+                                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                                                     VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                 enable_msaa);
+
         }
     }
 
@@ -166,18 +179,26 @@ namespace Chandelier
 
         auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
         
-        size_t desc_loc = 0;
-        m_desc_tracker->Bind(m_ubo.get(), Location(desc_loc++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        size_t index = 0;
+        m_desc_tracker->Bind(m_ubo.get(), Location(index++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
         
         for (auto&texture : m_pass_info->render_resources->model_tex_vec)
         {
-            m_desc_tracker->Bind(texture.get(), &default_sampler, Location(desc_loc++), VK_SHADER_STAGE_FRAGMENT_BIT);
+            m_desc_tracker->Bind(texture.get(), &default_sampler, Location(index++), VK_SHADER_STAGE_FRAGMENT_BIT);
         }
 
         auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
+        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_irradiance_cubemap.get(),
+                             &cubemap_sampler,
+                             Location(index++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
         m_desc_tracker->Bind(m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
                              &cubemap_sampler,
-                             Location(desc_loc++),
+                             Location(index++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_desc_tracker->Bind(m_pass_info->render_resources->brdf_lut.get(),
+                             &default_sampler,
+                             Location(index++),
                              VK_SHADER_STAGE_FRAGMENT_BIT);
 
         m_desc_tracker->Sync();
@@ -199,6 +220,17 @@ namespace Chandelier
         int attach_desc_count = use_resolve ? Attachment_Max_Count + 1 : Attachment_Max_Count;
         std::vector<VkAttachmentDescription> attachment_descs(attach_desc_count);
         {
+            // shadowmap
+            attachment_descs[Shadowmap_Attachment].format = SHADOWMAP_DEPTH_FORMAT;
+            attachment_descs[Shadowmap_Attachment].samples =
+                enable_msaa ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
+            attachment_descs[Shadowmap_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment_descs[Shadowmap_Attachment].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_descs[Shadowmap_Attachment].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_descs[Shadowmap_Attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment_descs[Shadowmap_Attachment].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_descs[Shadowmap_Attachment].finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
             // color
             attachment_descs[Color_Attachment].format         = swapchain.getImageFormat();
             attachment_descs[Color_Attachment].samples =
@@ -211,7 +243,7 @@ namespace Chandelier
             attachment_descs[Color_Attachment].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
             // depth
-            attachment_descs[DepthStencil_Attachment].format         = VK_FORMAT_D32_SFLOAT_S8_UINT;
+            attachment_descs[DepthStencil_Attachment].format = VK_FORMAT_D32_SFLOAT_S8_UINT;
             attachment_descs[DepthStencil_Attachment].samples =
                 enable_msaa ? context->GetSuitableSampleCount() : VK_SAMPLE_COUNT_1_BIT;
             attachment_descs[DepthStencil_Attachment].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -236,60 +268,99 @@ namespace Chandelier
         
         std::vector<VkSubpassDescription> subpasses(Render_Pass_Count);
         
+        VkAttachmentReference shadowmap_ref {Shadowmap_Attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkAttachmentReference color_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        VkAttachmentReference depth_attach_ref {DepthStencil_Attachment,VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        VkAttachmentReference depth_attach_ref {DepthStencil_Attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkAttachmentReference resolve_attach_ref {Resolve_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        subpasses[Main_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[Main_Pass].colorAttachmentCount    = 1;
-        subpasses[Main_Pass].pColorAttachments       = &color_attach_ref;
-        subpasses[Main_Pass].pDepthStencilAttachment = &depth_attach_ref;
-        if (use_resolve)
-            subpasses[Main_Pass].pResolveAttachments = &resolve_attach_ref;
         
-        VkAttachmentReference skybox_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        subpasses[Skybox_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[Skybox_Pass].colorAttachmentCount    = 1;
-        subpasses[Skybox_Pass].pColorAttachments       = &skybox_attach_ref;
-        subpasses[Skybox_Pass].pDepthStencilAttachment = &depth_attach_ref;
+        // shadowmap pass
+        auto& shadowmap_subpass                   = subpasses[Shadowmap_Pass];
+        shadowmap_subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        shadowmap_subpass.pDepthStencilAttachment = &shadowmap_ref;
         if (use_resolve)
-            subpasses[Skybox_Pass].pResolveAttachments = &resolve_attach_ref;
+            shadowmap_subpass.pResolveAttachments = &resolve_attach_ref;
 
-        /**
-         * @todo: don't know how i wanna blend ui attachment and color attachment...just write ui pass on color attachment for now
-         * maybe follow the piccolo solution, use ui pass as input attachment and run a combine ui pass
-         */
-        VkAttachmentReference ui_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-        subpasses[UI_Pass].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpasses[UI_Pass].colorAttachmentCount    = 1;
-        subpasses[UI_Pass].pColorAttachments       = &ui_attach_ref;
+        // main pass
+        auto& main_pass_subpass                   = subpasses[Main_Pass];
+        main_pass_subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        main_pass_subpass.colorAttachmentCount    = 1;
+        main_pass_subpass.pColorAttachments       = &color_attach_ref;
+        main_pass_subpass.pDepthStencilAttachment = &depth_attach_ref;
         if (use_resolve)
-            subpasses[UI_Pass].pResolveAttachments = &resolve_attach_ref;
+            main_pass_subpass.pResolveAttachments = &resolve_attach_ref;
+        
+        // skybox pass
+        auto& skybox_subpass                   = subpasses[Skybox_Pass];
+        skybox_subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        skybox_subpass.colorAttachmentCount    = 1;
+        skybox_subpass.pColorAttachments       = &color_attach_ref;
+        skybox_subpass.pDepthStencilAttachment = &depth_attach_ref;
+        if (use_resolve)
+            skybox_subpass.pResolveAttachments = &resolve_attach_ref;
+        
+        // ui pass
+        auto& ui_subpass                 = subpasses[UI_Pass];
+        ui_subpass.pipelineBindPoint     = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        ui_subpass.colorAttachmentCount  = 1;
+        ui_subpass.pColorAttachments     = &color_attach_ref;
+        if (use_resolve)
+            ui_subpass.pResolveAttachments = &resolve_attach_ref;
 
         /**
          * @todo: optimize the dependency setting, just to make it work for now 
          */
-        std::vector<VkSubpassDependency> dependencies(2);
-        dependencies[0] = {};
-        dependencies[0].srcSubpass = Main_Pass;
-        dependencies[0].dstSubpass = Skybox_Pass;
-        dependencies[0].srcStageMask =
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependencies[0].dstStageMask =
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependencies[0].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        dependencies[0].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        std::vector<VkSubpassDependency> dependencies(5);
+        // NONE -> Shadow Map
+        dependencies[0].srcSubpass      = VK_SUBPASS_EXTERNAL;
+        dependencies[0].dstSubpass      = Shadowmap_Pass;
+        dependencies[0].srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependencies[0].dstStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependencies[0].srcAccessMask   = VK_ACCESS_SHADER_READ_BIT;
+        dependencies[0].dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-        dependencies[1]            = {};
-        dependencies[1].srcSubpass = Skybox_Pass;
-        dependencies[1].dstSubpass = UI_Pass;
-        dependencies[1].srcStageMask =
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependencies[1].dstStageMask =
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependencies[1].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        dependencies[1].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        // Shadow Map -> Main Pass
+        dependencies[1].srcSubpass      = Shadowmap_Pass;
+        dependencies[1].dstSubpass      = Main_Pass;
+        dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependencies[1].srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        dependencies[1].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT;
         dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+        // Main Pass -> Skybox Pass
+        dependencies[2].srcSubpass = Main_Pass;
+        dependencies[2].dstSubpass = Skybox_Pass;
+        dependencies[2].srcStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[2].dstStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[2].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        dependencies[2].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        dependencies[2].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+        // Main Pass -> UI Pass
+        dependencies[3].srcSubpass = Main_Pass;
+        dependencies[3].dstSubpass = UI_Pass;
+        dependencies[3].srcStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[3].dstStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[3].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        dependencies[3].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        dependencies[3].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+        // Skybox Pass -> UI Pass
+        dependencies[4].srcSubpass = Skybox_Pass;
+        dependencies[4].dstSubpass = UI_Pass;
+        dependencies[4].srcStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[4].dstStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependencies[4].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        dependencies[4].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        dependencies[4].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
 
         VkRenderPassCreateInfo render_pass_info = {};
         render_pass_info.sType                  = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -329,12 +400,12 @@ namespace Chandelier
         VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
         vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-        auto vertex_binding_desc = ShaderData::Vertex::getBindingDescription();
-        auto vert_attr_desc      = ShaderData::Vertex::getAttributeDescriptions();
+        auto vertex_binding_desc = m_pass_info->render_resources->model_mesh_vec.front()->GetBindingDescription();
+        auto vert_attr_desc      = m_pass_info->render_resources->model_mesh_vec.front()->GetAttributeDescriptions();
 
-        vertex_input_info.vertexBindingDescriptionCount   = 1;
-        vertex_input_info.vertexAttributeDescriptionCount = static_cast<uint32_t>(vert_attr_desc.size());
-        vertex_input_info.pVertexBindingDescriptions      = &vertex_binding_desc;
+        vertex_input_info.vertexBindingDescriptionCount   = vertex_binding_desc.size();
+        vertex_input_info.pVertexBindingDescriptions      = vertex_binding_desc.data();
+        vertex_input_info.vertexAttributeDescriptionCount = vert_attr_desc.size();
         vertex_input_info.pVertexAttributeDescriptions    = vert_attr_desc.data();
 
         VkPipelineInputAssemblyStateCreateInfo input_assembly = {};
@@ -342,7 +413,6 @@ namespace Chandelier
         input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         input_assembly.primitiveRestartEnable = VK_FALSE;
 
-        // NDC coordinates
         VkViewport viewport = {};
         viewport.x        = 0.0f;
         viewport.y        = 0.0f;
@@ -464,6 +534,7 @@ namespace Chandelier
             m_framebuffers[i].render_pass = m_render_pipeline.render_pass;
             m_framebuffers[i].render_area = {{0, 0}, {width, height}};
 
+            auto& shadowmap_attachment     = m_framebuffers[i].attachments[Shadowmap_Attachment];
             auto& color_attachment         = m_framebuffers[i].attachments[Color_Attachment];
             auto& depth_stencil_attachment = m_framebuffers[i].attachments[DepthStencil_Attachment];
             
@@ -472,11 +543,15 @@ namespace Chandelier
             std::vector<VkImageView> attachments;
             if (enable_msaa)
             {
-                attachments = {color_attachment->getView(), depth_stencil_attachment->getView(), swapchain.getImageView(i)};
+                attachments = {shadowmap_attachment->getView(),
+                               color_attachment->getView(),
+                               depth_stencil_attachment->getView(),
+                               swapchain.getImageView(i)};
             }
             else
             {
-                attachments = {swapchain.getImageView(i), depth_stencil_attachment->getView()};
+                attachments = {
+                    shadowmap_attachment->getView(), swapchain.getImageView(i), depth_stencil_attachment->getView()};
             }
             
             VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -508,7 +583,7 @@ namespace Chandelier
 
     void MainRenderPass::PreDrawSetup()
     {
-// #define COMPUTE_BRDF_LUT
+#define COMPUTE_BRDF_LUT
 #define COMPUTE_PREFILTER
 #define COMPUTE_IRRADIANCE
 
@@ -530,7 +605,7 @@ namespace Chandelier
             brdf_lut_pass->Initialize(brdflut_init_info);
             runner.Initialize(brdf_lut_pass);
             runner.Run();
-            runner.Save("brdf_lut.png");
+            // runner.Save("brdf_lut.png");
         }
 #endif
 
@@ -540,8 +615,8 @@ namespace Chandelier
         glm::mat4 captureViews[]    = {
             glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // X+
             glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // X-
-            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)), // Z+
-            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)), // Z-
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)), // Z+
+            glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)), // Z-
             glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // Y+
             glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), // Y-
         };
@@ -610,10 +685,10 @@ namespace Chandelier
 
                     prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-                    SaveHDRTexture(m_pass_info->render_resources->skybox_prefilter_cubemap, filename, layer, mip_level);
+                    // SaveHDRTexture(m_pass_info->render_resources->skybox_prefilter_cubemap, filename, layer, mip_level);
                 }
             }
-            // command_manager.Submit();
+            command_manager.Submit();
         }
 
         #ifdef COMPUTE_IRRADIANCE
@@ -669,11 +744,12 @@ namespace Chandelier
 
                 irradiance_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                SaveHDRTexture(m_pass_info->render_resources->skybox_irradiance_cubemap, filename, layer, 0);
+                // SaveHDRTexture(m_pass_info->render_resources->skybox_irradiance_cubemap, filename, layer, 0);
             }
-            // command_manager.Submit();
+            command_manager.Submit();
         }
         #endif
+        SyncDescriptorSets();
     }
 
     void MainRenderPass::PostDrawCallback()
@@ -686,6 +762,9 @@ namespace Chandelier
     void MainRenderPass::Draw()
     {
         MAIN_PASS_SETUP_CONTEXT 
+        
+        command_manager.BindPipeline(m_render_pipeline.pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+        m_desc_tracker->BindDescriptorSet(m_render_pipeline.layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
         // todo: is it necessary to bind everytime before drawing? if not relocate it later
         for (auto& mesh : m_pass_info->render_resources->model_mesh_vec)
@@ -710,7 +789,7 @@ namespace Chandelier
         PostDrawCallback();
     }
 
-    void MainRenderPass::ForwardDraw(std::vector<std::shared_ptr<RenderPass>> subpasses)
+    void MainRenderPass::ForwardDraw(const std::vector<std::shared_ptr<RenderPass>>& subpasses)
     {
         MAIN_PASS_SETUP_CONTEXT
         uint32_t width = m_pass_info->width, height = m_pass_info->height;
@@ -718,16 +797,18 @@ namespace Chandelier
         auto&    active_framebuffer = m_framebuffers[frame_index];
 
         command_manager.ActivateFramebuffer(active_framebuffer);
-
         command_manager.BeginRenderPass(active_framebuffer);
-        command_manager.BindPipeline(m_render_pipeline.pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
-
-        m_desc_tracker->BindDescriptorSet(m_render_pipeline.layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
         command_manager.SetViewport(VkViewport {0.f, 0.f, (float)width, (float)height, 0.f, 1.f});
         command_manager.SetScissor(VkRect2D {{0, 0}, {width, height}});
 
         {
+            if (m_shadowmap_pass)
+            {
+                m_shadowmap_pass->Draw();
+                command_manager.NextSubpass();
+            }
+
             this->Draw();
 
             for (auto& subpass : subpasses)
@@ -742,5 +823,10 @@ namespace Chandelier
     }
 
     const VkRenderPass* MainRenderPass::GetRenderPass() { return &m_render_pipeline.render_pass;}
+
+    void MainRenderPass::SetShadowMapPass(std::shared_ptr<RenderPass> shadowmap_pass)
+    {
+        m_shadowmap_pass = shadowmap_pass;
+    }
 
 } // namespace Chandelier

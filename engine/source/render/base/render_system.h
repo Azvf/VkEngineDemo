@@ -10,12 +10,14 @@ namespace Chandelier
     class WindowSystem;
     class RenderScene;
 
+    class ShadowmapPass;
     class MainRenderPass;
     class SkyboxPass;
     class UIPass;
 
     class MainPassUniformBuffer;
     class SkyboxPassUniformBuffer;
+    class ShadowmapPassUniformBuffer;
 
     class RenderSystem
     {
@@ -42,14 +44,15 @@ namespace Chandelier
         // std::shared_ptr<Camera>         m_camera;
         std::shared_ptr<sss::ArcBallCamera>         m_arcball_camera;
         // std::shared_ptr<RenderScene>    m_scene;
+        std::shared_ptr<ShadowmapPass>  m_shadowmap_pass;
         std::shared_ptr<MainRenderPass> m_main_pass;
         std::shared_ptr<SkyboxPass>     m_skybox_pass;
         std::shared_ptr<UIPass>         m_ui_pass;
 
         std::shared_ptr<MainPassUniformBuffer> m_main_pass_uniform_buffer;
         std::shared_ptr<SkyboxPassUniformBuffer> m_skybox_pass_uniform_buffer;
+        std::shared_ptr<ShadowmapPassUniformBuffer> m_shadowmap_pass_uniform_buffer;
 
-        bool m_need_resize   = false;
         bool m_need_recreate = false;
         
         eAntiAliasing m_anti_aliasing;
