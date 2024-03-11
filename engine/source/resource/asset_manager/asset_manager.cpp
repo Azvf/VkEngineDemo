@@ -57,7 +57,7 @@ namespace Chandelier
         return nullptr;
     }
 
-    std::shared_ptr<Mesh> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename)
+    std::vector<std::shared_ptr<Mesh>> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename)
     {
         auto mesh = std::make_shared<Mesh>();
 
@@ -82,11 +82,6 @@ namespace Chandelier
         auto& attrib = reader.GetAttrib();
         auto& shapes = reader.GetShapes();
 
-        std::unordered_map<ShaderData::Vertex, uint32_t> unique_vertices;
-
-        std::vector<ShaderData::Vertex> mesh_vertices;
-        std::vector<uint32_t>           mesh_indices;
-
         uint32_t mesh_properties = {};
         if (attrib.normals.size())
         {
@@ -97,8 +92,16 @@ namespace Chandelier
             mesh_properties |= Has_UV;
         }
 
+        std::vector<std::shared_ptr<Mesh>> loaded_meshes;
         for (size_t s = 0; s < shapes.size(); s++)
         {
+            /**
+             * @todo: deprecate  ShaderData::Vertex
+             */
+            std::unordered_map<ShaderData::Vertex, uint32_t> unique_vertices;
+            std::vector<ShaderData::Vertex>                  mesh_vertices;
+            std::vector<uint32_t>                            mesh_indices;
+
             size_t index_offset = 0;
             for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
             {
@@ -224,32 +227,34 @@ namespace Chandelier
                     mesh_indices.push_back(unique_vertices[mesh_vert]);
                 }
             }
+
+            std::vector<float> input_vertices;
+            for (auto& v : mesh_vertices)
+            {
+                input_vertices.push_back(v.position.x);
+                input_vertices.push_back(v.position.y);
+                input_vertices.push_back(v.position.z);
+
+                input_vertices.push_back(v.normal.x);
+                input_vertices.push_back(v.normal.y);
+                input_vertices.push_back(v.normal.z);
+
+                input_vertices.push_back(v.tangent.x);
+                input_vertices.push_back(v.tangent.y);
+                input_vertices.push_back(v.tangent.z);
+
+                input_vertices.push_back(v.texcoord.x);
+                input_vertices.push_back(v.texcoord.y);
+            }
+
+            loaded_meshes.push_back(mesh->load(context,
+                                               mesh_properties,
+                                               input_vertices.data(),
+                                               input_vertices.size(),
+                                               mesh_indices.data(),
+                                               mesh_indices.size()));
         }
-
-        std::vector<float> input_vertices;
-        for (auto& v : mesh_vertices)
-        {
-            input_vertices.push_back(v.position.x);
-            input_vertices.push_back(v.position.y);
-            input_vertices.push_back(v.position.z);
-
-            input_vertices.push_back(v.normal.x);
-            input_vertices.push_back(v.normal.y);
-            input_vertices.push_back(v.normal.z);
-
-            input_vertices.push_back(v.tangent.x);
-            input_vertices.push_back(v.tangent.y);
-            input_vertices.push_back(v.tangent.z);
-
-            input_vertices.push_back(v.texcoord.x);
-            input_vertices.push_back(v.texcoord.y);
-        }
-        return mesh->load(context,
-                          mesh_properties,
-                          input_vertices.data(),
-                          input_vertices.size(),
-                          mesh_indices.data(),
-                          mesh_indices.size());
+        return loaded_meshes;
     }
 
     static VkFormat CubeMapChannelsToFormat(int desired_channels) {

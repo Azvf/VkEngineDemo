@@ -98,7 +98,8 @@ namespace Chandelier
 
     extern std::filesystem::path GetFullPath(std::string_view relative_path);
 
-    extern std::shared_ptr<Mesh> LoadStaticMesh(std::shared_ptr<VKContext> context, std::string_view filename);
+    extern std::vector<std::shared_ptr<Mesh>> LoadStaticMesh(std::shared_ptr<VKContext> context,
+                                                             std::string_view           filename);
 
     extern std::shared_ptr<Mesh> LoadDefaultMesh(std::shared_ptr<VKContext> context, DefaultMeshType mesh_type);
 
