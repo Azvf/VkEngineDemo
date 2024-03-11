@@ -21,6 +21,8 @@ layout(set = 0, binding = 6) uniform samplerCube skybox_irradiance_sampler;
 layout(set = 0, binding = 7) uniform samplerCube skybox_prefilter_sampler;
 layout(set = 0, binding = 8) uniform sampler2D brdf_lut_sampler;
 
+layout (input_attachment_index = 0, binding = 9) uniform subpassInput shadowmap_pass;
+
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in vec3 in_normal;
 layout(location = 2) in vec3 in_tangent;
@@ -85,6 +87,8 @@ vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
 
 void main() 
 {
+    float test_depth = subpassLoad(shadowmap_pass).r;
+
     if (ubo.config.display_texture == 1) {
         frag_color = vec4(texture(base_color_sampler, in_uv).rgb, 1.0);
         return;
@@ -101,7 +105,7 @@ void main()
         frag_color = vec4(texture(roughness_sampler, in_uv).rgb, 1.0);
         return;
     } else if (ubo.config.display_texture == 6) {
-        frag_color = vec4(in_uv, 1.0, 1.0);
+        frag_color = vec4(in_uv, 0.0, 1.0);
         return;
     }
     
