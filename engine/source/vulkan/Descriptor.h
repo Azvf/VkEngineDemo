@@ -56,7 +56,8 @@ namespace Chandelier
         bool is_image() const
         {
             return (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) ||
-                   (texture && type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                   (texture && type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ||
+                   (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
         }
     };
 

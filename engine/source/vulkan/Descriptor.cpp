@@ -72,8 +72,15 @@ namespace Chandelier
     void DescriptorTracker::Bind(Texture* texture, Location loc, VkShaderStageFlags stages)
     {
         Binding& binding = EnsureLocation(loc);
-
-        binding.type    = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        if (texture->GetTextureType() == Render_Target_Texture)
+        {
+            binding.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        }
+        else
+        {
+            assert(0);
+            binding.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        }
         binding.texture = texture;
         
         binding.shader_stages = stages;
@@ -195,9 +202,12 @@ namespace Chandelier
 
             /* TODO: Based on the actual usage we should use
              * VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL/VK_IMAGE_LAYOUT_GENERAL. */
-            binding.texture->TransferLayout(VK_IMAGE_LAYOUT_GENERAL);
+            binding.texture->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            
+            bool is_attachment_image = (binding.type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
+            
             VkDescriptorImageInfo image_info = {};
-            image_info.sampler               = binding.vk_sampler;
+            image_info.sampler               = is_attachment_image ? VK_NULL_HANDLE : binding.vk_sampler;
             image_info.imageView             = binding.texture->getView();
             image_info.imageLayout           = binding.texture->getLayout();
 
@@ -214,6 +224,7 @@ namespace Chandelier
             descriptor_writes.push_back(write_descriptor);
         }
 
+        assert(descriptor_writes.size() == m_bindings.size());
         vkUpdateDescriptorSets(
             m_context->getDevice(), descriptor_writes.size(), descriptor_writes.data(), 0, nullptr);
 
