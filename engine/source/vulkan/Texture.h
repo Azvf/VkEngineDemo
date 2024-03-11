@@ -49,6 +49,8 @@ namespace Chandelier
         
         std::optional<VkClearValue> GetClearValue();
 
+        TextureType GetTextureType() { return m_tex_type; }
+
         void UnInit();
 
         void InitAttachment(std::shared_ptr<VKContext> context,
