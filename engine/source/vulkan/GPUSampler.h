@@ -141,7 +141,7 @@ namespace Chandelier
          */
         static constexpr GPUSamplerState default_sampler()
         {
-            return {GPU_SAMPLER_FILTERING_DEFAULT | GPU_SAMPLER_FILTERING_ANISOTROPIC,
+            return {GPU_SAMPLER_FILTERING_LINEAR | GPU_SAMPLER_FILTERING_ANISOTROPIC,
                     GPU_SAMPLER_EXTEND_MODE_EXTEND,
                     GPU_SAMPLER_EXTEND_MODE_EXTEND,
                     GPU_SAMPLER_CUSTOM_COMPARE,
