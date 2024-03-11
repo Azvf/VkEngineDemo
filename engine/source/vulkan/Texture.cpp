@@ -80,7 +80,7 @@ namespace Chandelier
 
         VkImageView view {};
 
-        const VkImageAspectFlags aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+        const VkImageAspectFlags aspect_flags = GetAspectFlags();
 
         VkImageViewCreateInfo view_info {};
         view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -107,8 +107,7 @@ namespace Chandelier
     {
         assert(m_image != VK_NULL_HANDLE);
 
-        // @todo: fixme
-        VkImageAspectFlags aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+        VkImageAspectFlags aspect_flags = GetAspectFlags();
 
         VkImageMemoryBarrier barrier = {};
         barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
