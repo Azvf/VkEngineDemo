@@ -23,8 +23,10 @@ namespace Chandelier
     };
 
     /**
-     * @todo: just listed the main pass and the dependent subpasses, 
-     * do the render pass management later
+     * @todo: The render passes should be a DAG in a topological order,
+     * which created at runtime based on render pipeline choices,
+     * instead of being pre-defined like here, refactor the whole render pass
+     * construction workflow later
      */
     enum eRenderPass : uint8_t
     {
