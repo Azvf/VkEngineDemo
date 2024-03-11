@@ -69,8 +69,8 @@ namespace Chandelier
         m_pass_info   = std::dynamic_pointer_cast<MainRenderPassInitInfo>(info);
 
         SetupUniformBuffer();
-        SetupDescriptorSets();
         SetupAttachments();
+        SetupDescriptorSets();
         SetupPipeline();
         SetupFramebuffers();
     }
@@ -79,8 +79,8 @@ namespace Chandelier
     {
         ResetFramebuffers();
         ResetPipeline();
-        ResetAttachments();
         ResetDescriptorSets();
+        ResetAttachments();
         ResetUniformBuffer();
     }
 
@@ -148,7 +148,7 @@ namespace Chandelier
                                                  1,
                                                  SHADOWMAP_DEPTH_FORMAT,
                                                  VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                                                     VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                     VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
                                                  enable_msaa);
 
         }
@@ -200,7 +200,10 @@ namespace Chandelier
                              &default_sampler,
                              Location(index++),
                              VK_SHADER_STAGE_FRAGMENT_BIT);
-
+        auto& frame_index = context->GetFrameIndex();
+        m_desc_tracker->Bind(m_framebuffers[frame_index].attachments[Shadowmap_Attachment].get(),
+                             Location(index++),
+                             VK_SHADER_STAGE_FRAGMENT_BIT);
         m_desc_tracker->Sync();
     }
 
@@ -268,24 +271,29 @@ namespace Chandelier
         
         std::vector<VkSubpassDescription> subpasses(Render_Pass_Count);
         
-        VkAttachmentReference shadowmap_ref {Shadowmap_Attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkAttachmentReference color_attach_ref {Color_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
         VkAttachmentReference depth_attach_ref {DepthStencil_Attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkAttachmentReference resolve_attach_ref {Resolve_Attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
         
         // shadowmap pass
+        VkAttachmentReference shadowmap_write_ref {Shadowmap_Attachment,
+                                                   VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         auto& shadowmap_subpass                   = subpasses[Shadowmap_Pass];
         shadowmap_subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        shadowmap_subpass.pDepthStencilAttachment = &shadowmap_ref;
+        shadowmap_subpass.pDepthStencilAttachment = &shadowmap_write_ref;
         if (use_resolve)
             shadowmap_subpass.pResolveAttachments = &resolve_attach_ref;
 
         // main pass
+        VkAttachmentReference shadowmap_read_ref {Shadowmap_Attachment, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         auto& main_pass_subpass                   = subpasses[Main_Pass];
         main_pass_subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
         main_pass_subpass.colorAttachmentCount    = 1;
         main_pass_subpass.pColorAttachments       = &color_attach_ref;
         main_pass_subpass.pDepthStencilAttachment = &depth_attach_ref;
+        main_pass_subpass.inputAttachmentCount    = 1;
+        main_pass_subpass.pInputAttachments       = &shadowmap_read_ref;
+
         if (use_resolve)
             main_pass_subpass.pResolveAttachments = &resolve_attach_ref;
         
@@ -633,6 +641,12 @@ namespace Chandelier
             cubemap_prefilter_pass->Initialize(cubemap_prefilter_init_info);
             runner.Initialize(cubemap_prefilter_pass);
             
+            /**
+             * @todo: make a RAII util transfer-er to do back-and-forth layout tranfser
+             */
+            m_pass_info->render_resources->skybox_prefilter_cubemap->TransferLayout(
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
             for (int mip_level = 0; mip_level < CUBEMAP_PREFILTER_MIP_LEVEL; mip_level++)
             {
                 CubemapFilterPassUniformBuffer prefilter_ubo;
@@ -675,7 +689,7 @@ namespace Chandelier
                     copy_region.extent.width  = static_cast<uint32_t>(data_width);
                     copy_region.extent.height = static_cast<uint32_t>(data_height);
                     copy_region.extent.depth  = 1;
-                    
+                                        
                     command_manager.Copy(prefilter_attachment.get(),
                                          m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
                                          std::vector<VkImageCopy> {copy_region});
@@ -683,11 +697,13 @@ namespace Chandelier
                     prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-                    prefilter_attachment->TransferLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
                     // SaveHDRTexture(m_pass_info->render_resources->skybox_prefilter_cubemap, filename, layer, mip_level);
                 }
             }
+
+             m_pass_info->render_resources->skybox_prefilter_cubemap->TransferLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
             command_manager.Submit();
         }
 
@@ -703,7 +719,10 @@ namespace Chandelier
             auto irradiance_convolution_pass = std::make_shared<IrradianceConvolutionPass>();
             irradiance_convolution_pass->Initialize(irradiance_init_info);
             runner.Initialize(irradiance_convolution_pass);
-
+            
+            m_pass_info->render_resources->skybox_irradiance_cubemap->TransferLayout(
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            
             for (unsigned int layer = 0; layer < 6; ++layer)
             {
                 IrradianceConvolutionPassUniformBuffer prefilter_ubo;
@@ -746,6 +765,10 @@ namespace Chandelier
                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 // SaveHDRTexture(m_pass_info->render_resources->skybox_irradiance_cubemap, filename, layer, 0);
             }
+            
+            m_pass_info->render_resources->skybox_irradiance_cubemap->TransferLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
             command_manager.Submit();
         }
         #endif
@@ -761,8 +784,9 @@ namespace Chandelier
 
     void MainRenderPass::Draw()
     {
-        MAIN_PASS_SETUP_CONTEXT 
-        
+        MAIN_PASS_SETUP_CONTEXT
+
+        SyncDescriptorSets();
         command_manager.BindPipeline(m_render_pipeline.pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
         m_desc_tracker->BindDescriptorSet(m_render_pipeline.layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
@@ -782,7 +806,7 @@ namespace Chandelier
                                                                   vertex_count * sizeof(glm::vec3) * 2,
                                                                   vertex_count * sizeof(glm::vec3) * 3};
             command_manager.Bind(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bind_vertex_buffers, bind_vertex_attr_offsets);
-            
+
             command_manager.DrawIndexed(mesh.get());
         }
 
