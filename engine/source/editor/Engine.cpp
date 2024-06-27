@@ -2,7 +2,7 @@
 
 #include "runtime/framework/global/global_context.h"
 #include "UI/window_system.h"
-#include "render/base/render_system.h"
+#include "editor/render_system.h"
 
 namespace Chandelier
 {
@@ -12,7 +12,7 @@ namespace Chandelier
     {
         g_context.StartSystems("config path");
 
-        m_window_system = std::make_shared<WindowSystem>(Vector2i {1920, 1080}, "tiny engine");
+        m_window_system = std::make_shared<WindowSystem>(Vector2i {960, 540}, "tiny engine");
         m_window_system->Initialize();
 
         m_render_system = std::make_shared<RenderSystem>();

@@ -34,10 +34,10 @@ namespace Chandelier
         glfwTerminate();
     }
 
-    VkSurfaceKHR WindowSystem::CreateSurface(std::shared_ptr<VKContext> context)
+    VkSurfaceKHR WindowSystem::CreateSurface(VkInstance instance)
     {
         VkSurfaceKHR surface;
-        VULKAN_API_CALL(glfwCreateWindowSurface(context->getInstance(), m_handle, nullptr, &surface));
+        VULKAN_API_CALL(glfwCreateWindowSurface(instance, m_handle, nullptr, &surface));
         return surface;
     }
 

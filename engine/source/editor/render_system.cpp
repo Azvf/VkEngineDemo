@@ -95,7 +95,8 @@ namespace Chandelier
     void RenderSystem::Initialize(std::shared_ptr<WindowSystem> window_system)
     {
         m_window_system = window_system;
-        m_context       = std::make_shared<VKContext>();
+        
+        m_context = std::make_shared<VKContext>();
         m_context->Initialize(m_window_system);
 
         LoadAssets();
@@ -104,7 +105,7 @@ namespace Chandelier
 
         SetupRenderPasses();
 
-        m_arcball_camera = std::make_shared<sss::ArcBallCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 4.0f);
+        m_arcball_camera = std::make_shared<sss::ArcBallCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 10.0f);
         // m_arcball_camera->update(glm::vec2(0.0, 45.0), 0.0);
 
         SetupLightingSet();
@@ -118,7 +119,7 @@ namespace Chandelier
     {
         auto& lights = m_main_pass_uniform_buffer->lights;
 
-        lights.point_light_num = 0;
+        lights.point_light_num = 1;
         for (int i = 0; i < lights.point_light_num; i++)
         {
             lights.point_lights[i].color     = Vector3(1.0, 1.0, 1.0);
@@ -129,7 +130,7 @@ namespace Chandelier
         float base_distance = 3.0;
 
         // lights.point_lights[0].color    = Vector3(0.08, 0.29, 0.47);
-        lights.point_lights[0].position = Vector3(base_distance, base_distance, base_distance);
+        lights.point_lights[0].position = Vector3(0.0, 1.0, 0.0);
 
         lights.point_lights[1].position = Vector3(-base_distance, -base_distance, -base_distance);
         lights.point_lights[2].position = Vector3(base_distance, -base_distance, base_distance);
@@ -143,7 +144,9 @@ namespace Chandelier
             std::string asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/base models/";
             
             // mesh
-            m_render_resources->model_mesh_vec.push_back(LoadStaticMesh(m_context, asset_dir + "sphere.obj"));
+            auto test_scene = LoadStaticMesh(m_context, asset_dir + "untitled.obj");
+            m_render_resources->model_mesh_vec.insert(
+                m_render_resources->model_mesh_vec.end(), test_scene.begin(), test_scene.end());
             
             // textures
             asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/dragon-scales/";
@@ -253,13 +256,14 @@ namespace Chandelier
 
         const glm::mat4 viewMatrix = m_arcball_camera->getViewMatrix();
         const glm::mat4 projectionMatrix = vulkanCorrection * glm::perspective(fovy, ar, 1.0f, 50.0f);
-        const glm::mat4 viewProjection =
-            vulkanCorrection * glm::perspective(fovy, ar, 0.01f, 50.0f) * viewMatrix;
+        const glm::mat4 viewProjection = projectionMatrix * viewMatrix;
 
         m_skybox_pass_uniform_buffer->inv_model_view_projection = glm::inverse(viewProjection);
         m_skybox_pass->UpdateUniformBuffer(*m_skybox_pass_uniform_buffer);
 
-        m_shadowmap_pass_uniform_buffer->view       = viewMatrix;
+        const glm::mat4 light_view_matrix =
+            glm::lookAt(glm::vec3(0.1, 4.0, 0.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
+        m_shadowmap_pass_uniform_buffer->view       = light_view_matrix;
         m_shadowmap_pass_uniform_buffer->projection = projectionMatrix;
         m_shadowmap_pass->UpdateUniformBuffer(*m_shadowmap_pass_uniform_buffer);
 

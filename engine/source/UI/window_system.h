@@ -50,7 +50,7 @@ namespace Chandelier
 
         void* Handle() { return m_handle; }
 
-        VkSurfaceKHR CreateSurface(std::shared_ptr<VKContext> context);
+        VkSurfaceKHR CreateSurface(VkInstance instance);
         Vector2i     GetWindowSize();
         Vector2i     GetFramebufferSize();
         void         WaitEvents();
