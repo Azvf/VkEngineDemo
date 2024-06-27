@@ -22,6 +22,27 @@ else()
      message(FATAL_ERROR "Unknown Platform")
 endif()
 
+# lemon
+include_directories(${TINY_ENGINE_VENDOR_DIR}/lemon/include)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(Lemon_Libraries ${TINY_ENGINE_VENDOR_DIR}/lemon/lib/debug/lemon.lib)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(FATAL_ERROR "work in progress")
+    set(Lemon_Libraries ${TINY_ENGINE_VENDOR_DIR}/lemon/lib/release/lemon.lib)
+endif()
+
+# spirv_cross
+include_directories(${TINY_ENGINE_VENDOR_DIR}/spirv_cross/include)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(Spirv_Cross_Libraries 
+        ${TINY_ENGINE_VENDOR_DIR}/spirv_cross/lib/debug/spirv-cross-cored.lib
+        ${TINY_ENGINE_VENDOR_DIR}/spirv_cross/lib/debug/spirv-cross-glsld.lib
+    )
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(FATAL_ERROR "work in progress")
+    set(Spirv_Cross_Libraries ${TINY_ENGINE_VENDOR_DIR}/spirv_cross/lib/release/spirv-cross-glsl.lib)
+endif()
+
 add_subdirectory(vendor)
 add_subdirectory(source/parser)
 add_subdirectory(source)

@@ -100,6 +100,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${GLFW_Libraries})
 # json11
 target_link_libraries(${PROJECT_NAME} PRIVATE json11)
 
+# lemon
+target_link_libraries(${PROJECT_NAME} PRIVATE ${Lemon_Libraries})
+
+# spirv_cross
+target_link_libraries(${PROJECT_NAME} PRIVATE ${Spirv_Cross_Libraries})
+
 ### precompile
 # set global var used by precompile
 file(GLOB_RECURSE HEADER_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
