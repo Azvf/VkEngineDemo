@@ -6,3 +6,4 @@ assets/
 *.spv
 engine/source/_generated/
 .vscode/
+engine/vendor/gli/
