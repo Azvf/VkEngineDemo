@@ -43,6 +43,10 @@ namespace Chandelier
         VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates,
                                      VkImageTiling                tiling,
                                      VkFormatFeatureFlags         features);
+        
+        VkPresentModeKHR   SelectPresentMode();
+        VkSurfaceFormatKHR SelectSurfaceFormat();
+        VkExtent2D         SelectExtent(const VkSurfaceCapabilitiesKHR& surf_caps, uint32_t width, uint32_t height);
 
     private:
         std::shared_ptr<VKContext>    m_context;
@@ -67,5 +71,7 @@ namespace Chandelier
         VkFence m_fence = VK_NULL_HANDLE;
 
         uint32_t m_render_image_index;
+
+        bool m_lock_to_VSync = true;
     };
 } // namespace Chandelier

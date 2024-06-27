@@ -42,11 +42,11 @@ namespace Chandelier
         /* We use the same command queue for the compute and graphics pipeline, so it is safe to use
          * exclusive resource handling. */
         buffer_info.sharingMode                   = VK_SHARING_MODE_EXCLUSIVE;
-        buffer_info.queueFamilyIndexCount         = 1;
-        QueueFamilyIndices queue_families         = m_context->FindQueueFamilies(m_context->getPhysicalDevice());
-        const uint32_t     queue_family_indices[] = {queue_families.graphicsFamily.value(),
-                                                     queue_families.presentFamily.value()};
-        buffer_info.pQueueFamilyIndices           = queue_family_indices;
+        
+        QueueFamily           queue_family         = m_context->FindQueueFamilies(m_context->getPhysicalDevice());
+        std::vector<uint32_t> queue_family_indices = {queue_family.gfx_queue_index.value()};
+        buffer_info.queueFamilyIndexCount          = queue_family_indices.size();
+        buffer_info.pQueueFamilyIndices            = queue_family_indices.data();
 
         const auto& device = context->getDevice();
         VULKAN_API_CALL(vkCreateBuffer(device, &buffer_info, nullptr, &m_buffer));

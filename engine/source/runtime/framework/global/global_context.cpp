@@ -1,7 +1,5 @@
 #include "global_context.h"
 
-#include "UI/window_system.h"
-#include "render/base/render_system.h"
 #include "resource/asset_manager/asset_manager.h"
 #include "runtime/framework/config_manager/config_manager.h"
 

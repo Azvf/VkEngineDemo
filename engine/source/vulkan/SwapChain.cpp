@@ -24,12 +24,99 @@ namespace Chandelier
 
     void SwapChain::UnInit() { Destroy(); }
 
+    VkPresentModeKHR SwapChain::SelectPresentMode()
+    {
+        const auto& phy_device = m_context->getPhysicalDevice();
+        const auto& surface    = m_context->getSurface();
+
+        VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+
+        uint32_t present_mode_count;
+        VULKAN_API_CALL(vkGetPhysicalDeviceSurfacePresentModesKHR(phy_device, surface, &present_mode_count, nullptr));
+        assert(present_mode_count > 0);
+
+        std::vector<VkPresentModeKHR> present_mode_vec(present_mode_count);
+        VULKAN_API_CALL(vkGetPhysicalDeviceSurfacePresentModesKHR(
+            phy_device, surface, &present_mode_count, present_mode_vec.data()));
+
+        auto found_present_mode = [present_mode_vec](VkPresentModeKHR mode) -> bool {
+            return (std::find(present_mode_vec.begin(), present_mode_vec.end(), mode) != present_mode_vec.end());
+        };
+
+        bool mailbox_mode_found   = found_present_mode(VK_PRESENT_MODE_MAILBOX_KHR);
+        bool immediate_mode_found = found_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+        bool FIFO_mode_found      = found_present_mode(VK_PRESENT_MODE_FIFO_KHR);
+
+        if (immediate_mode_found && !m_lock_to_VSync)
+        {
+            present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        }
+        else if (mailbox_mode_found)
+        {
+            present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+        }
+        else if (FIFO_mode_found)
+        {
+            present_mode = VK_PRESENT_MODE_FIFO_KHR;
+        }
+
+        return present_mode;
+    }
+
+    VkSurfaceFormatKHR SwapChain::SelectSurfaceFormat()
+    {
+        const auto& phy_device = m_context->getPhysicalDevice();
+        const auto& surface    = m_context->getSurface();
+
+        uint32_t format_count;
+        VULKAN_API_CALL(vkGetPhysicalDeviceSurfaceFormatsKHR(phy_device, surface, &format_count, nullptr));
+        assert(format_count);
+
+        std::vector<VkSurfaceFormatKHR> formats(format_count);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(phy_device, surface, &format_count, formats.data());
+        
+        for (const auto& surf_format : formats)
+        {
+            /**
+             * @todo: VK_FORMAT_B8G8R8A8_UNORM will require us to manually do gamma correction in frag shader
+             */
+            if (surf_format.format == VK_FORMAT_B8G8R8A8_UNORM &&
+                surf_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            {
+                return surf_format;
+            }
+        }
+
+        return formats.front();
+    }
+
+    VkExtent2D SwapChain::SelectExtent(const VkSurfaceCapabilitiesKHR& surf_caps, uint32_t width, uint32_t height)
+    {
+        const auto& phy_device = m_context->getPhysicalDevice();
+        const auto& surface    = m_context->getSurface();
+
+        if (width == 0 || height == 0)
+        {
+            assert(0);
+            return VkExtent2D {width, height};
+        }
+        
+        VkExtent2D actual_extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+        actual_extent.width =
+            std::clamp(actual_extent.width, surf_caps.minImageExtent.width, surf_caps.maxImageExtent.width);
+        actual_extent.height =
+            std::clamp(actual_extent.height, surf_caps.minImageExtent.height, surf_caps.maxImageExtent.height);
+
+        return actual_extent;
+    }
+
     void SwapChain::CreateSwapChain()
     {
         Vector2i size = m_window_system->GetFramebufferSize();
 
         if (size.x == 0 && size.y == 0)
         {
+            assert(0);
             return;
         }
 
@@ -37,17 +124,16 @@ namespace Chandelier
         const auto& device     = m_context->getDevice();
         const auto& surface    = m_context->getSurface();
 
-        SwapChainSupportDetails swapChainSupport = m_context->QuerySwapChainSupport(m_context->getPhysicalDevice());
+        VkSurfaceCapabilitiesKHR surf_caps;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phy_device, surface, &surf_caps);
 
-        VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-        VkPresentModeKHR   presentMode   = chooseSwapPresentMode(swapChainSupport.presentModes);
-        VkExtent2D         extent        = chooseSwapExtent(swapChainSupport.capabilities, size.x, size.y);
+        VkSurfaceFormatKHR surf_format = this->SelectSurfaceFormat();
+        VkExtent2D         extent      = this->SelectExtent(surf_caps, size.x, size.y);
 
-        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-        if (swapChainSupport.capabilities.maxImageCount > 0 &&
-            imageCount > swapChainSupport.capabilities.maxImageCount)
+        uint32_t imageCount = surf_caps.minImageCount + 1;
+        if (surf_caps.maxImageCount > 0 && imageCount > surf_caps.maxImageCount)
         {
-            imageCount = swapChainSupport.capabilities.maxImageCount;
+            imageCount = surf_caps.maxImageCount;
         }
 
         VkSwapchainCreateInfoKHR createInfo {};
@@ -55,31 +141,15 @@ namespace Chandelier
         createInfo.surface = surface;
 
         createInfo.minImageCount    = imageCount;
-        createInfo.imageFormat      = surfaceFormat.format;
-        createInfo.imageColorSpace  = surfaceFormat.colorSpace;
+        createInfo.imageFormat      = surf_format.format;
+        createInfo.imageColorSpace  = surf_format.colorSpace;
         createInfo.imageExtent      = extent;
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-        QueueFamilyIndices indices              = m_context->FindQueueFamilies(m_context->getPhysicalDevice());
-        uint32_t           queueFamilyIndices[] = {indices.graphicsFamily.value(),
-                                                   indices.presentFamily.value()};
-
-        if (indices.graphicsFamily != indices.presentFamily)
-        {
-            createInfo.imageSharingMode      = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices   = queueFamilyIndices;
-        }
-        else
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        }
-
-        createInfo.preTransform   = swapChainSupport.capabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode    = presentMode;
-        createInfo.clipped        = VK_TRUE;
+        createInfo.preTransform     = surf_caps.currentTransform;
+        createInfo.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode      = SelectPresentMode();
+        createInfo.clipped          = VK_TRUE;
 
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
@@ -102,7 +172,7 @@ namespace Chandelier
 
         VULKAN_API_CALL(vkCreateFence(m_context->getDevice(), &fence_info, nullptr, &m_fence));
 
-        m_swapChainImageFormat = surfaceFormat.format;
+        m_swapChainImageFormat = surf_format.format;
         m_swapChainExtent      = extent;
 
         m_swapChainImageViews.resize(m_swapChainImages.size());

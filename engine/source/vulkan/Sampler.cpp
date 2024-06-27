@@ -46,7 +46,7 @@ namespace Chandelier
                 sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
             }
             if ((sampler_state.filtering & GPU_SAMPLER_FILTERING_ANISOTROPIC) &&
-                (context->getDeviceFeatures().features.samplerAnisotropy == VK_TRUE))
+                (context->GetDeviceFeatures().Core_1_0.features.samplerAnisotropy == VK_TRUE))
             {
                 sampler_info.anisotropyEnable = VK_TRUE;
                 sampler_info.maxAnisotropy    = 16.0f;

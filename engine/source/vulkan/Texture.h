@@ -153,7 +153,6 @@ namespace Chandelier
 
         bool m_cube = false;
 
-        // bool m_is_attachment_texture = false;
         TextureType m_tex_type = Generated_Texture;
 
         bool m_use_msaa = false;

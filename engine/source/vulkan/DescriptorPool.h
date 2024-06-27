@@ -33,7 +33,7 @@ namespace Chandelier
         void Initialize(std::shared_ptr<VKContext> context);
         void Free();
 
-        std::shared_ptr<Descriptor> AllocDescriptor(const VkDescriptorSetLayout& descriptor_set_layout);
+        VkDescriptorSet Allocate(const VkDescriptorSetLayout& descriptor_set_layout);
         
         VkDescriptorPool Handle();
 

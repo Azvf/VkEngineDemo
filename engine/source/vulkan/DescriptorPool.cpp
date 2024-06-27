@@ -23,7 +23,7 @@ namespace Chandelier
         }
     }
 
-    std::shared_ptr<Descriptor> DescriptorPools::AllocDescriptor(const VkDescriptorSetLayout& descriptor_set_layout)
+    VkDescriptorSet DescriptorPools::Allocate(const VkDescriptorSetLayout& descriptor_set_layout)
     {
         assert(descriptor_set_layout != VK_NULL_HANDLE);
 
@@ -50,10 +50,10 @@ namespace Chandelier
             {
                 ActivateNextPool();
             }
-            return AllocDescriptor(descriptor_set_layout);
+            return Allocate(descriptor_set_layout);
         }
 
-        return std::make_shared<Descriptor>(m_context.get(), pool, vk_descriptor_set);
+        return vk_descriptor_set;
     }
 
     VkDescriptorPool DescriptorPools::Handle() { return GetActivatedPool(); }

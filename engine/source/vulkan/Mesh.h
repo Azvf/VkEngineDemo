@@ -74,7 +74,7 @@ namespace Chandelier {
 	public:
         static std::shared_ptr<Mesh> load(std::shared_ptr<VKContext> context,
                                           uint32_t                   properties,
-                                          const float*             vertices,
+                                          const float*               vertices,
                                           size_t                     vertex_count,
                                           const uint32_t*            indices,
                                           size_t                     index_count);
