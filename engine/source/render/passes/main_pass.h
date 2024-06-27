@@ -103,15 +103,6 @@ namespace Chandelier
     private:
         std::shared_ptr<MainRenderPassInitInfo> m_pass_info;
         
-        enum LayoutType : uint8_t
-        {
-            Global_Mesh_Layout = 0,
-            Mesh_Material_Layout,
-            // Per_Mesh_Layout,
-            // Skybox_Layout,
-            Layout_Type_Count
-        };
-        
         /**
          * @todo: optimize use push constants
          */

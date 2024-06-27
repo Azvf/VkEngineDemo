@@ -383,23 +383,26 @@ namespace Chandelier
         /**
          * @todo: implement the global path configurer and asset manager to eliminate the abs path
          */
-        auto vert_shader = std::make_unique<Shader>();
-        auto vert_code   = readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\base_vert.spv");
-        vert_shader->Initialize(context, reinterpret_cast<const uint8_t*>(vert_code.data()), vert_code.size());
-
-        auto frag_shader = std::make_unique<Shader>();
-        auto frag_code   = readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\base_frag.spv");
-        frag_shader->Initialize(context, reinterpret_cast<const uint8_t*>(frag_code.data()), frag_code.size());
+        GraphicsPipelineShaders graphics_shaders;
+        graphics_shaders.Initialize(context);
+        graphics_shaders.InitShader(
+            "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\base_vert.spv",
+            GraphicsPipelineShaders::Vertex_Shader);
+        graphics_shaders.InitShader(
+            "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\base_frag.spv",
+            GraphicsPipelineShaders::Fragment_Shader);
+        auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
+        auto frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vert_shader_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+        vert_shader_info.stage  = vert_shader->ShaderStage();
         vert_shader_info.module = vert_shader->GetModule();
         vert_shader_info.pName  = "main";
 
         VkPipelineShaderStageCreateInfo frag_shader_info = {};
         frag_shader_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        frag_shader_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+        frag_shader_info.stage  = frag_shader->ShaderStage();
         frag_shader_info.module = frag_shader->GetModule();
         frag_shader_info.pName  = "main";
 

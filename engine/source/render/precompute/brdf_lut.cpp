@@ -108,22 +108,24 @@ namespace Chandelier
         auto vert_shader = std::make_unique<Shader>();
         auto vert_code =
             readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\brdf_lut_gen_vert.spv");
-        vert_shader->Initialize(context, reinterpret_cast<const uint8_t*>(vert_code.data()), vert_code.size());
+        vert_shader->Initialize(
+            context, VK_SHADER_STAGE_VERTEX_BIT, reinterpret_cast<const uint8_t*>(vert_code.data()), vert_code.size());
 
         auto frag_shader = std::make_unique<Shader>();
         auto frag_code =
             readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\brdf_lut_gen_frag.spv");
-        frag_shader->Initialize(context, reinterpret_cast<const uint8_t*>(frag_code.data()), frag_code.size());
+        frag_shader->Initialize(
+            context, VK_SHADER_STAGE_FRAGMENT_BIT, reinterpret_cast<const uint8_t*>(frag_code.data()), frag_code.size());
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vert_shader_info.stage                           = VK_SHADER_STAGE_VERTEX_BIT;
+        vert_shader_info.stage                           = vert_shader->ShaderStage();
         vert_shader_info.module                          = vert_shader->GetModule();
         vert_shader_info.pName                           = "main";
 
         VkPipelineShaderStageCreateInfo frag_shader_info = {};
         frag_shader_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        frag_shader_info.stage                           = VK_SHADER_STAGE_FRAGMENT_BIT;
+        frag_shader_info.stage                           = frag_shader->ShaderStage();
         frag_shader_info.module                          = frag_shader->GetModule();
         frag_shader_info.pName                           = "main";
 
