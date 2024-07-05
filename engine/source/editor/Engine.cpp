@@ -8,9 +8,12 @@ namespace Chandelier
 {
     Engine::Engine() {}
 
-    void Engine::Initialize()
+    void Engine::Initialize(const EngineInitInfo& info)
     {
-        g_context.StartSystems("config path");
+        GlobalContextInitInfo g_context_init_info = {};
+        g_context_init_info.executable_path = info.executable_path;
+        
+        g_context.Initialize(g_context_init_info);
 
         m_window_system = std::make_shared<WindowSystem>(Vector2i {960, 540}, "tiny engine");
         m_window_system->Initialize();
@@ -21,9 +24,10 @@ namespace Chandelier
 
     void Engine::UnInit()
     {
-        g_context.ShutdownSystems();
         m_render_system = nullptr;
         m_window_system = nullptr;
+
+        g_context.UnInit();
     }
 
     void Engine::Run()

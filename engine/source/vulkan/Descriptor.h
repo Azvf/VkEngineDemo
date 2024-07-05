@@ -76,6 +76,9 @@ namespace Chandelier
         Descriptor() = default;
         ~Descriptor() = default;
 
+        Descriptor(const Descriptor& other);
+        Descriptor(Descriptor&& other);
+
         Descriptor& operator=(const Descriptor& other);
         Descriptor& operator=(Descriptor&& other);
 
@@ -111,7 +114,7 @@ namespace Chandelier
         operator VkDescriptorSetLayout() const { return m_active_desc_layout; }
 
     protected:
-        virtual std::shared_ptr<Descriptor> CreateResource() override;
+        virtual std::shared_ptr<Descriptor> CreateResource() override { return nullptr;}
 
     private:
         VkDescriptorSetLayout CreateLayout();

@@ -1,3 +1,6 @@
+@echo on
+mkdir "generated"
+
 glslc.exe shader.vert -o generated/base_vert.spv
 glslc.exe shader.frag -o generated/base_frag.spv
 

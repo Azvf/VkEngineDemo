@@ -5,6 +5,29 @@
 
 namespace Chandelier
 {
+    namespace fs = std::filesystem;
+
+    #define SINGLETON(CLASS_NAME) class CLASS_NAME : public Singleton<CLASS_NAME> 
+    template<class T>
+    class Singleton
+    {
+    public:
+        static T& GetInstance()
+        {
+            static T instance;
+            return instance;
+        }
+
+        Singleton(const Singleton&) = delete;
+        Singleton(Singleton&&)      = delete;
+
+        Singleton& operator=(const Singleton&) = delete;
+        Singleton& operator=(Singleton&&)      = delete;
+
+    protected:
+        Singleton() = default;
+    };
+
     std::filesystem::path GetExeDirPath();
     std::vector<char>     readBinaryFile(const char* filepath);
 

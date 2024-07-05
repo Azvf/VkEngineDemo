@@ -2,6 +2,7 @@
 
 #include "resource/asset_manager/asset_manager.h"
 #include "runtime/core/base/exception.h"
+#include "runtime/framework/global/global_context.h"
 
 #include "main_pass.h"
 #include "VkContext.h"
@@ -77,15 +78,15 @@ namespace Chandelier
         SKYBOX_PASS_SETUP_CONTEXT
         bool enable_msaa = m_pass_info->main_pass_uniform_buffer->config.anti_aliasing == Enable_MSAA;
  
-        auto vert_shader = std::make_unique<Shader>();
-        auto vert_code   = readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\skybox_vert.spv");
-        vert_shader->Initialize(
-            context, VK_SHADER_STAGE_VERTEX_BIT, reinterpret_cast<const uint8_t*>(vert_code.data()), vert_code.size());
-
-        auto frag_shader = std::make_unique<Shader>();
-        auto frag_code   = readBinaryFile("G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\skybox_frag.spv");
-        frag_shader->Initialize(
-            context, VK_SHADER_STAGE_FRAGMENT_BIT, reinterpret_cast<const uint8_t*>(frag_code.data()), frag_code.size());
+        auto                    shaders_folder = g_context.GetShaderFolder();
+        GraphicsPipelineShaders graphics_shaders;
+        graphics_shaders.Initialize(context);
+        graphics_shaders.InitShader((shaders_folder / "skybox_vert.spv").string(),
+                                    GraphicsPipelineShaders::Vertex_Shader);
+        graphics_shaders.InitShader((shaders_folder / "skybox_frag.spv").string(),
+                                    GraphicsPipelineShaders::Fragment_Shader);
+        auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
+        auto frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

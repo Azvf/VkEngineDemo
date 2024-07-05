@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <chrono>
+#include <filesystem>
 
 #include "UI/window_system.h"
 #include "editor/camera.h"
@@ -12,6 +13,7 @@
 #include "render/precompute/brdf_lut.h"
 #include "render/precompute/cubemap_prefilter.h"
 #include "render/precompute/irradiance_convolution_pass.h"
+#include "runtime/framework/global/global_context.h"
 
 #include "VkContext.h"
 #include "Texture.h"
@@ -141,30 +143,36 @@ namespace Chandelier
         auto& command_manager = m_context->GetCommandManager();
         m_render_resources = std::make_shared<RenderResources>();
         {
-            std::string asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/base models/";
+            auto& asset_dir = g_context.GetAssetFolder();
+            
+            auto model_asset_dir = asset_dir / "base models";
             
             // mesh
-            auto test_scene = LoadStaticMesh(m_context, asset_dir + "untitled.obj");
+            auto test_scene = 
+                LoadStaticMesh(m_context, (model_asset_dir / "untitled.obj").string());
             m_render_resources->model_mesh_vec.insert(
                 m_render_resources->model_mesh_vec.end(), test_scene.begin(), test_scene.end());
             
             // textures
-            asset_dir = "G:/Visual Studio Projects/VkEngineDemo/engine/assets/dragon-scales/";
-            m_render_resources->model_tex_vec.push_back(LoadTexture(
-                m_context, asset_dir + "dragon-scales_albedo.png", SRGB_Color_Space));
-            m_render_resources->model_tex_vec.push_back(LoadTexture(
-                m_context, asset_dir + "dragon-scales_normal-ogl.png", Linear_Color_Space));
-            m_render_resources->model_tex_vec.push_back(LoadTexture(
-                m_context, asset_dir + "dragon-scales_ao.png", Linear_Color_Space));
-            m_render_resources->model_tex_vec.push_back(LoadTexture(
-                m_context, asset_dir + "dragon-scales_metallic.png", Linear_Color_Space));
-            m_render_resources->model_tex_vec.push_back(LoadTexture(
-                m_context, asset_dir + "dragon-scales_roughness.png", Linear_Color_Space));
+            auto texture_asset_dir = asset_dir / "dragon-scales";
+
+            m_render_resources->model_tex_vec.push_back(
+                LoadTexture(m_context, (texture_asset_dir / "dragon-scales_albedo.png").string(), SRGB_Color_Space));
+            m_render_resources->model_tex_vec.push_back(
+                LoadTexture(m_context, (texture_asset_dir / "dragon-scales_normal-ogl.png").string(), Linear_Color_Space));
+            m_render_resources->model_tex_vec.push_back(
+                LoadTexture(m_context, (texture_asset_dir / "dragon-scales_ao.png").string(), Linear_Color_Space));
+            m_render_resources->model_tex_vec.push_back(
+                LoadTexture(m_context, (texture_asset_dir / "dragon-scales_metallic.png").string(), Linear_Color_Space));
+            m_render_resources->model_tex_vec.push_back(
+                LoadTexture(m_context, (texture_asset_dir / "dragon-scales_roughness.png").string(), Linear_Color_Space));
 
             // brdf lut
-            asset_dir                    = "G:/Visual Studio Projects/VkEngineDemo/build/engine/source/";
-            // m_render_resources->brdf_lut = LoadTexture(m_context, asset_dir + "brdf_lut.png", Linear_Color_Space);
-            m_render_resources->brdf_lut = LoadTextureHDR(m_context, asset_dir + "brdf_schilk.hdr", 4);
+            auto generated_asset_dir = asset_dir / "generated";
+            m_render_resources->brdf_lut =
+                LoadTexture(m_context, (generated_asset_dir / "brdf_lut.png").string(), Linear_Color_Space);
+            /*m_render_resources->brdf_lut = 
+                LoadTextureHDR(m_context, (generated_asset_dir / "brdf_schilk.hdr").string(), 4);*/
 
             // screen mesh
             m_render_resources->screen_mesh = LoadDefaultMesh(m_context, Screen_Mesh);
@@ -175,18 +183,16 @@ namespace Chandelier
             {
                 // skybox cubemap
                 std::array<std::shared_ptr<Texture>, 6> skybox_faces;
-                skybox_faces[0] = LoadTextureHDR(
-                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X+.hdr", 4);
-                skybox_faces[1] = LoadTextureHDR(
-                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_X-.hdr", 4);
-                skybox_faces[2] = LoadTextureHDR(
-                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z+.hdr", 4);
-                skybox_faces[3] = LoadTextureHDR(
-                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Z-.hdr", 4);
-                skybox_faces[4] = LoadTextureHDR(
-                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y+.hdr", 4);
-                skybox_faces[5] = LoadTextureHDR(
-                    m_context, "G:/Visual Studio Projects/VkEngineDemo/engine/assets/skybox/skybox_specular_Y-.hdr", 4);
+
+                auto skybox_asset_folder = (asset_dir / "skybox");
+
+                skybox_faces[0] = LoadTextureHDR(m_context, (skybox_asset_folder / "skybox_specular_X+.hdr").string(), 4);
+                skybox_faces[1] = LoadTextureHDR(m_context, (skybox_asset_folder / "skybox_specular_X-.hdr").string(), 4);
+                skybox_faces[2] = LoadTextureHDR(m_context, (skybox_asset_folder / "skybox_specular_Z+.hdr").string(), 4);
+                skybox_faces[3] = LoadTextureHDR(m_context, (skybox_asset_folder / "skybox_specular_Z-.hdr").string(), 4);
+                skybox_faces[4] = LoadTextureHDR(m_context, (skybox_asset_folder / "skybox_specular_Y+.hdr").string(), 4);
+                skybox_faces[5] = LoadTextureHDR(m_context, (skybox_asset_folder / "skybox_specular_Y-.hdr").string(), 4);
+                
                 m_render_resources->skybox_cubemap = LoadSkybox(m_context, skybox_faces, 4);
             }
             
@@ -215,7 +221,7 @@ namespace Chandelier
             {
                 // skybox irradiance cubemap
                 m_render_resources->skybox_irradiance_cubemap = std::make_shared<Texture>();
-            
+                
                 m_render_resources->skybox_irradiance_cubemap->InitCubeMap(
                     m_context,
                     IRRADIANCE_MAP_WIDTH,

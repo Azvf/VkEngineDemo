@@ -16,6 +16,30 @@
 namespace Chandelier
 {
 
+    Descriptor::Descriptor(const Descriptor& other)
+    {
+        context    = other.context;
+        set_layout = other.set_layout;
+        desc_set   = other.desc_set;
+        desc_pool  = other.desc_pool;
+        bindings   = other.bindings;
+    }
+
+    Descriptor::Descriptor(Descriptor&& other)
+    {
+        context    = other.context;
+        set_layout = other.set_layout;
+        desc_set   = other.desc_set;
+        desc_pool  = other.desc_pool;
+        bindings   = other.bindings;
+
+        other.context    = nullptr;
+        other.set_layout = VK_NULL_HANDLE;
+        other.desc_set   = VK_NULL_HANDLE;
+        other.desc_pool  = VK_NULL_HANDLE;
+        other.bindings.clear();
+    }
+
     Descriptor& Descriptor::operator=(const Descriptor& other) {
         context    = other.context;
         set_layout = other.set_layout;
@@ -238,11 +262,6 @@ namespace Chandelier
             m_context->getDevice(), descriptor_writes.size(), descriptor_writes.data(), 0, nullptr);
 
         m_bindings.clear();
-    }
-
-    std::shared_ptr<Descriptor> DescriptorTracker::CreateResource()
-    {
-        return m_context->GetDescriptorPools().Allocate(m_active_desc_layout);
     }
 
     BindTable::~BindTable() { UnInit(); }

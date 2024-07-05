@@ -73,7 +73,34 @@ add_executable(${PROJECT_NAME}
     ${TINY_ENGINE_RESOURCE}
 )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
+set(GLSLC_EXE ${ENGINE_DIR}/shaders/glslc.exe)
+set(SHADERS ${ENGINE_DIR}/shaders)
+add_custom_command(TARGET ${PROJECT_NAME}
+                    POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E echo "Copying assets ${ENGINE_DIR}/assets to ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory ${ENGINE_DIR}/assets ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADERS}/generated
+                    COMMAND ${CMAKE_COMMAND} -E echo "Running post-build script"
+                    COMMAND ${CMAKE_COMMAND} -E echo "Compiling shaders: ${ENGINE_DIR}/shaders"
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/shader.vert                 -o ${SHADERS}/generated/base_vert.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/shader.frag                 -o ${SHADERS}/generated/base_frag.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/skybox.vert                 -o ${SHADERS}/generated/skybox_vert.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/skybox.frag                 -o ${SHADERS}/generated/skybox_frag.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/basic_P2T2.vert             -o ${SHADERS}/generated/brdf_lut_gen_vert.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/brdf_lut_gen.frag           -o ${SHADERS}/generated/brdf_lut_gen_frag.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/cubemap.vert                -o ${SHADERS}/generated/cubemap_prefilter_gen_vert.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/cubemap_prefilter_gen.frag  -o ${SHADERS}/generated/cubemap_prefilter_gen_frag.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/cubemap.vert                -o ${SHADERS}/generated/irradiance_convolution_vert.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/irradiance_convolution.frag -o ${SHADERS}/generated/irradiance_convolution_frag.spv
+                    COMMAND ${GLSLC_EXE} ${SHADERS}/shadowmap.vert              -o ${SHADERS}/generated/shadowmap_vert.spv
+                    COMMAND ${CMAKE_COMMAND} -E echo "Compiling shaders executed successfully."
+                    COMMAND ${CMAKE_COMMAND} -E echo "Copying shaders form ${SHADERS}/generated to ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/shaders"
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory ${SHADERS}/generated ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/shaders
+                    )
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX) 
 
 # tiny engine include
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

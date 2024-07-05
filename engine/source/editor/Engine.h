@@ -1,16 +1,22 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 namespace Chandelier {
     class WindowSystem;
     class RenderSystem;
 
+	struct EngineInitInfo
+	{
+        std::string executable_path;
+	};
+
 	class Engine {
 	public:
 		Engine();
 
-		void Initialize();
+		void Initialize(const EngineInitInfo& info);
         void UnInit();
 
 	public:

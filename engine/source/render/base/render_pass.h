@@ -2,6 +2,7 @@
 
 #include "render/base/render_pass_base.h"
 #include "resource/asset_manager/asset_manager.h"
+#include "runtime/framework/global/global_context.h"
 
 #include "VkCommon.h"
 #include "Framebuffer.h"

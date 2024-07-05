@@ -66,7 +66,7 @@ namespace Chandelier
 
         void InitShader(std::string_view shader_path, ShaderStage stage);
 
-        std::shared_ptr<Shader> GetShader(ShaderStage shader);
+        std::optional<Shader> GetShader(ShaderStage shader);
 
     private:
         VkShaderStageFlagBits ShaderStageToVkStage(ShaderStage stage);
@@ -74,7 +74,7 @@ namespace Chandelier
     private:
         std::shared_ptr<VKContext> m_context;
 
-        std::array<std::shared_ptr<Shader>, Shader_Stage_Count> m_shaders;
+        std::array<std::optional<Shader>, Shader_Stage_Count> m_shaders;
 
         std::unordered_map<std::string, BindMetaData>           m_bind_meta_map;
         std::optional<PushConstMetaData>                        m_push_const_data;

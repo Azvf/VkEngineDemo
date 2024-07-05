@@ -2,6 +2,7 @@
 
 #include "render/base/common_vao_defines.h"
 #include "runtime/core/base/exception.h"
+#include "runtime/framework/global/global_context.h"
 
 #include "main_pass.h"
 
@@ -96,11 +97,12 @@ namespace Chandelier
 
         bool enable_msaa = m_pass_info->main_pass_uniform_buffer->config.anti_aliasing == Enable_MSAA;
 
-        auto vert_shader = std::make_unique<Shader>();
-        auto vert_code   = readBinaryFile(
-            "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\shadowmap_vert.spv");
-        vert_shader->Initialize(
-            context, VK_SHADER_STAGE_VERTEX_BIT, reinterpret_cast<const uint8_t*>(vert_code.data()), vert_code.size());
+        auto shaders_folder = g_context.GetShaderFolder();
+        GraphicsPipelineShaders graphics_shaders;
+        graphics_shaders.Initialize(context);
+        graphics_shaders.InitShader(
+            (shaders_folder / "shadowmap_vert.spv").string(), GraphicsPipelineShaders::Vertex_Shader);
+        auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

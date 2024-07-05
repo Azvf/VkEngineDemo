@@ -2,10 +2,6 @@
 
 namespace Chandelier
 {
-    void ConfigManager::Initialize(const std::filesystem::path& config_file_path)
-    {
-        m_root_folder  = "";
-        m_asset_folder = "";
-    }
+    void ConfigManager::Initialize(const std::filesystem::path& config_file_path) {}
 
 } // namespace Chandelier

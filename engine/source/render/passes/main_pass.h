@@ -8,6 +8,7 @@ namespace Chandelier
 {
     class Buffer;
     class ShadowmapPass;
+    class BindTable;
 
     /**
      * @todo: refactor camera class and move it there
@@ -107,7 +108,8 @@ namespace Chandelier
          * @todo: optimize use push constants
          */
         std::shared_ptr<Buffer> m_ubo;
-        std::shared_ptr<DescriptorTracker> m_desc_tracker;
+        // std::shared_ptr<DescriptorTracker> m_desc_tracker;
+        std::shared_ptr<BindTable> m_bind_table;
 
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
 

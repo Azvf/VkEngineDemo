@@ -36,7 +36,7 @@ namespace Chandelier
         if (!file.is_open())
         {
             std::string msg = "Failed to open file " + std::string(filepath) + "!";
-            throw "error";
+            throw std::runtime_error("readBinaryFile error");
         }
 
         std::streamsize size = file.tellg();
@@ -50,7 +50,7 @@ namespace Chandelier
         else
         {
             std::string msg = "Failed to read file " + std::string(filepath) + "!";
-            throw "error";
+            throw std::runtime_error("readBinaryFile error");
         }
     }
 } // namespace Utils

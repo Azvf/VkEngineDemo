@@ -169,7 +169,8 @@ namespace Chandelier
     {
         MAIN_PASS_SETUP_CONTEXT
         
-        m_desc_tracker = std::make_shared<DescriptorTracker>(context);
+        m_bind_table = std::make_shared<BindTable>(context);
+        m_bind_table->Initialize(10); 
         SyncDescriptorSets();
     }
 
@@ -180,37 +181,34 @@ namespace Chandelier
         auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
         
         size_t index = 0;
-        m_desc_tracker->Bind(m_ubo.get(), Location(index++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        m_bind_table->Bind(m_ubo.get(), Location(index++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
         
         for (auto&texture : m_pass_info->render_resources->model_tex_vec)
         {
-            m_desc_tracker->Bind(texture.get(), &default_sampler, Location(index++), VK_SHADER_STAGE_FRAGMENT_BIT);
+            m_bind_table->Bind(texture.get(), &default_sampler, Location(index++), VK_SHADER_STAGE_FRAGMENT_BIT);
         }
 
         auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
-        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_irradiance_cubemap.get(),
+        m_bind_table->Bind(m_pass_info->render_resources->skybox_irradiance_cubemap.get(),
                              &cubemap_sampler,
                              Location(index++),
                              VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Bind(m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
+        m_bind_table->Bind(m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
                              &cubemap_sampler,
                              Location(index++),
                              VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Bind(m_pass_info->render_resources->brdf_lut.get(),
+        m_bind_table->Bind(m_pass_info->render_resources->brdf_lut.get(),
                              &default_sampler,
                              Location(index++),
                              VK_SHADER_STAGE_FRAGMENT_BIT);
         auto& frame_index = context->GetFrameIndex();
-        m_desc_tracker->Bind(m_framebuffers[frame_index].attachments[Shadowmap_Attachment].get(),
+        m_bind_table->Bind(m_framebuffers[frame_index].attachments[Shadowmap_Attachment].get(),
                              Location(index++),
                              VK_SHADER_STAGE_FRAGMENT_BIT);
-        m_desc_tracker->Sync();
+        m_bind_table->Sync();
     }
 
-    void MainRenderPass::ResetDescriptorSets()
-    {
-        m_desc_tracker = nullptr;
-    }
+    void MainRenderPass::ResetDescriptorSets() { m_bind_table = nullptr; }
 
     void MainRenderPass::SetupPipeline()
     {
@@ -383,13 +381,12 @@ namespace Chandelier
         /**
          * @todo: implement the global path configurer and asset manager to eliminate the abs path
          */
+        auto                    shaders_folder = g_context.GetShaderFolder();
         GraphicsPipelineShaders graphics_shaders;
         graphics_shaders.Initialize(context);
-        graphics_shaders.InitShader(
-            "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\base_vert.spv",
+        graphics_shaders.InitShader((shaders_folder / "base_vert.spv").string(),
             GraphicsPipelineShaders::Vertex_Shader);
-        graphics_shaders.InitShader(
-            "G:\\Visual Studio Projects\\VkEngineDemo\\engine\\shaders\\generated\\base_frag.spv",
+        graphics_shaders.InitShader((shaders_folder / "base_frag.spv").string(),
             GraphicsPipelineShaders::Fragment_Shader);
         auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
         auto frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
@@ -472,8 +469,8 @@ namespace Chandelier
         color_blending.blendConstants[1] = 0.0f;
         color_blending.blendConstants[2] = 0.0f;
         color_blending.blendConstants[3] = 0.0f;
-
-        std::vector<VkDescriptorSetLayout> layouts{m_desc_tracker->GetSetLayout()};
+        
+        std::vector<VkDescriptorSetLayout> layouts {m_bind_table->GetDescriptor(0).set_layout};
         
         VkPipelineLayoutCreateInfo pipeline_layout_info = {};
         pipeline_layout_info.sType                      = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -791,7 +788,7 @@ namespace Chandelier
 
         SyncDescriptorSets();
         command_manager.BindPipeline(m_render_pipeline.pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
-        m_desc_tracker->BindDescriptorSet(m_render_pipeline.layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+        m_bind_table->BindSet(m_render_pipeline.layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
         // todo: is it necessary to bind everytime before drawing? if not relocate it later
         for (auto& mesh : m_pass_info->render_resources->model_mesh_vec)

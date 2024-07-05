@@ -46,7 +46,7 @@ namespace Chandelier
 
     void GraphicsPipelineShaders::InitShader(std::string_view shader_path, ShaderStage stage)
     {
-        auto shader = std::make_shared<Shader>();
+        auto shader = std::make_optional<Shader>();
         auto code = readBinaryFile(shader_path.data());
         shader->Initialize(
             m_context, ShaderStageToVkStage(stage), reinterpret_cast<const uint8_t*>(code.data()), code.size());
@@ -93,6 +93,11 @@ namespace Chandelier
         for (auto& resource : resources.separate_images)
         {
             read_resource(resource, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+        }
+
+        for (auto& resource : resources.subpass_inputs)
+        {
+            read_resource(resource, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
         }
 
         for (const auto& resource : resources.push_constant_buffers)
@@ -142,7 +147,7 @@ namespace Chandelier
         // m_desc_tracker->Sync();
     }
 
-    std::shared_ptr<Shader> GraphicsPipelineShaders::GetShader(ShaderStage shader) { return m_shaders[shader]; }
+    std::optional<Shader> GraphicsPipelineShaders::GetShader(ShaderStage shader) { return m_shaders[shader]; }
 
     VkShaderStageFlagBits GraphicsPipelineShaders::ShaderStageToVkStage(ShaderStage stage) {
         static const std::unordered_map<ShaderStage, VkShaderStageFlagBits> umap {

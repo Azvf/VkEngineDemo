@@ -1,9 +1,13 @@
 #include "Engine.h"
 
-int main() {
+int main(int argc, char** argv)
+{
 	Chandelier::Engine engine;
-    
-	engine.Initialize();
+
+	Chandelier::EngineInitInfo engine_init_info = {};
+    engine_init_info.executable_path            = argv[0];
+
+	engine.Initialize(engine_init_info);
 	engine.Run();
     engine.UnInit();
 
