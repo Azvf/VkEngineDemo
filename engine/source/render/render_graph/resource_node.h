@@ -32,7 +32,10 @@ namespace Chandelier
 
         TextureNode();
 
-
+    protected:
+        Texture*     m_texture;
+        TextureNode* m_frame_aliasing_src;
+        bool         m_frame_aliasing;
     };
 
     class BufferNode: public ResourceNode
@@ -42,8 +45,12 @@ namespace Chandelier
 
         BufferNode();
 
+        void Reimport();
 
+        BufferHandle Handle();
 
+    protected:
+        Buffer* m_buffer;
     };
 
 

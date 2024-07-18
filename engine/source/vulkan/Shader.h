@@ -4,6 +4,8 @@
 
 namespace Chandelier
 {
+    class BindTable;
+
     class Shader
     {
     public:
@@ -21,6 +23,34 @@ namespace Chandelier
         const VkShaderModule& GetModule() const { return m_shader_module; }
 
         VkShaderStageFlagBits ShaderStage() const { return m_shader_stage; }
+
+    public:
+        Shader(const Shader&) = delete;
+        Shader& operator=(const Shader&) = delete;
+
+        Shader(Shader&& other) noexcept
+        {
+            m_context       = other.m_context;
+            m_shader_module = other.m_shader_module; 
+            m_shader_stage  = other.m_shader_stage;
+
+            other.m_context       = nullptr;
+            other.m_shader_module = VK_NULL_HANDLE;
+            other.m_shader_stage  = VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM;
+        }
+
+        Shader& operator=(Shader&& other) noexcept 
+        {
+            m_context       = other.m_context;
+            m_shader_module = other.m_shader_module;
+            m_shader_stage  = other.m_shader_stage;
+
+            other.m_context       = nullptr;
+            other.m_shader_module = VK_NULL_HANDLE;
+            other.m_shader_stage  = VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM;
+
+            return *this;
+        }
 
     private:
         std::shared_ptr<VKContext> m_context;
@@ -66,10 +96,16 @@ namespace Chandelier
 
         void InitShader(std::string_view shader_path, ShaderStage stage);
 
-        std::optional<Shader> GetShader(ShaderStage shader);
+        const std::optional<Shader>& GetShader(ShaderStage shader);
+
+        uint32_t ShaderCount();
+
+        void Sync();
 
     private:
         VkShaderStageFlagBits ShaderStageToVkStage(ShaderStage stage);
+        
+        void SyncBindTable();
 
     private:
         std::shared_ptr<VKContext> m_context;
@@ -78,6 +114,8 @@ namespace Chandelier
 
         std::unordered_map<std::string, BindMetaData>           m_bind_meta_map;
         std::optional<PushConstMetaData>                        m_push_const_data;
+
+        std::shared_ptr<BindTable> m_bind_table;
     };
 
 } // namespace Chandelier

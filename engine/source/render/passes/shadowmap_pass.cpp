@@ -102,7 +102,7 @@ namespace Chandelier
         graphics_shaders.Initialize(context);
         graphics_shaders.InitShader(
             (shaders_folder / "shadowmap_vert.spv").string(), GraphicsPipelineShaders::Vertex_Shader);
-        auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
+        auto& vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

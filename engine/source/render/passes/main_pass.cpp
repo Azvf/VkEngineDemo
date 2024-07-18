@@ -47,7 +47,7 @@ namespace Chandelier
         ResetAttachments();
 
         SetupAttachments();
-        SyncDescriptorSets();
+        // SyncDescriptorSets();
         SetupPipeline();
         SetupFramebuffers();
     }
@@ -70,7 +70,6 @@ namespace Chandelier
 
         SetupUniformBuffer();
         SetupAttachments();
-        SetupDescriptorSets();
         SetupPipeline();
         SetupFramebuffers();
     }
@@ -79,7 +78,6 @@ namespace Chandelier
     {
         ResetFramebuffers();
         ResetPipeline();
-        ResetDescriptorSets();
         ResetAttachments();
         ResetUniformBuffer();
     }
@@ -165,15 +163,6 @@ namespace Chandelier
         }
     }
 
-    void MainRenderPass::SetupDescriptorSets()
-    {
-        MAIN_PASS_SETUP_CONTEXT
-        
-        m_bind_table = std::make_shared<BindTable>(context);
-        m_bind_table->Initialize(10); 
-        SyncDescriptorSets();
-    }
-
     void MainRenderPass::SyncDescriptorSets()
     {
         auto& context = m_pass_info->render_context.vk_context;
@@ -207,8 +196,6 @@ namespace Chandelier
                              VK_SHADER_STAGE_FRAGMENT_BIT);
         m_bind_table->Sync();
     }
-
-    void MainRenderPass::ResetDescriptorSets() { m_bind_table = nullptr; }
 
     void MainRenderPass::SetupPipeline()
     {
@@ -388,8 +375,8 @@ namespace Chandelier
             GraphicsPipelineShaders::Vertex_Shader);
         graphics_shaders.InitShader((shaders_folder / "base_frag.spv").string(),
             GraphicsPipelineShaders::Fragment_Shader);
-        auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
-        auto frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
+        auto& vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
+        auto& frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -522,7 +509,8 @@ namespace Chandelier
         vkDestroyRenderPass(context->getDevice(), m_render_pipeline.render_pass, nullptr);
         vkDestroyPipeline(context->getDevice(), m_render_pipeline.pipeline, nullptr);
         vkDestroyPipelineLayout(context->getDevice(), m_render_pipeline.layout, nullptr);
-        
+
+        m_bind_table = nullptr;
         m_render_pipeline.render_pass = VK_NULL_HANDLE;
         m_render_pipeline.pipeline    = VK_NULL_HANDLE;
         m_render_pipeline.layout      = VK_NULL_HANDLE;
@@ -617,7 +605,7 @@ namespace Chandelier
         }
 #endif
 
-        const glm::mat4 vulkanCorrection = {
+        constexpr const glm::mat4 vulkanCorrection = {
             {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.5f, 1.0f}};
         glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
         glm::mat4 captureViews[]    = {

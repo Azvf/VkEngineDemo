@@ -17,9 +17,9 @@ include_directories(${Vulkan_Includes})
 if(WIN32)
     set(Vulkan_Libraires ${TINY_ENGINE_VENDOR_DIR}/VulkanSDK/lib/Win32/vulkan-1.lib)
     # set(glslangValidator_executable ${TINY_ENGINE_VENDOR_DIR}/VulkanSDK/bin/Win32/glslangValidator.exe)
-    # add_compile_definitions("PICCOLO_VK_LAYER_PATH=${THIRD_PARTY_DIR}/VulkanSDK/bin/Win32")
+    add_compile_definitions("CHANDELIER_VK_LAYER_PATH=${TINY_ENGINE_VENDOR_DIR}/VulkanSDK/bin/Win32")
 else()
-     message(FATAL_ERROR "Unknown Platform")
+     message(FATAL_ERROR "Not Implemented")
 endif()
 
 # lemon

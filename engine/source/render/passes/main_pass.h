@@ -3,6 +3,7 @@
 #include <glm/mat4x4.hpp>
 #include "base/render_pass.h"
 #include "light/light.h"
+#include "Shader.h"
 
 namespace Chandelier
 {
@@ -93,7 +94,6 @@ namespace Chandelier
 
         void SetupDescriptorSets();
         void SyncDescriptorSets();
-        void ResetDescriptorSets();
         
         void SetupPipeline();
         void ResetPipeline();
@@ -110,6 +110,7 @@ namespace Chandelier
         std::shared_ptr<Buffer> m_ubo;
         // std::shared_ptr<DescriptorTracker> m_desc_tracker;
         std::shared_ptr<BindTable> m_bind_table;
+        std::optional<GraphicsPipelineShaders> m_shaders;
 
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
 

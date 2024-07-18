@@ -54,7 +54,7 @@ namespace Chandelier
         bool is_image() const
         {
             return (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) ||
-                   (texture && type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ||
+                   (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ||
                    (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
         }
     };
@@ -76,11 +76,11 @@ namespace Chandelier
         Descriptor() = default;
         ~Descriptor() = default;
 
-        Descriptor(const Descriptor& other);
-        Descriptor(Descriptor&& other);
+        Descriptor(const Descriptor& other) noexcept;
+        Descriptor(Descriptor&& other) noexcept;
 
-        Descriptor& operator=(const Descriptor& other);
-        Descriptor& operator=(Descriptor&& other);
+        Descriptor& operator=(const Descriptor& other) noexcept;
+        Descriptor& operator=(Descriptor&& other) noexcept;
 
         VkDescriptorSet Handle() const { return desc_set; }
 
@@ -126,13 +126,19 @@ namespace Chandelier
         VkDescriptorSetLayout m_active_desc_layout = VK_NULL_HANDLE;
     };
 
+    struct BindTableCI
+    {
+        // uint32_t descriptor_size;
+        uint32_t binding_size;
+    };
+
     class BindTable
     {
     public:
         explicit BindTable(std::shared_ptr<VKContext> context) : m_context(context) {}
         virtual ~BindTable();
 
-        void Initialize(uint32_t descriptor_size);
+        void Initialize(const BindTableCI& ci);
         void UnInit();
 
         static VkDescriptorSetLayoutBinding CreateLayoutBinding(const Binding& binding);

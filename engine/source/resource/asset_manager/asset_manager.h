@@ -17,58 +17,76 @@ namespace Chandelier
     class Texture;
     class VKContext;
 
-    class AssetManager
+    //class AssetManager
+    //{
+    //public:
+    //    template<class AssetType>
+    //    bool loadAsset(const std::string& asset_url, AssetType& out_asset) const
+    //    {
+    //        // read json file to string
+    //        std::filesystem::path asset_path = getFullPath(asset_url);
+    //        std::ifstream         asset_json_file(asset_path);
+    //        if (!asset_json_file)
+    //        {
+    //            assert(0);
+    //            return false;
+    //        }
+
+    //        std::stringstream buffer;
+    //        buffer << asset_json_file.rdbuf();
+    //        std::string asset_json_text(buffer.str());
+
+    //        // parse to json object and read to runtime res object
+    //        std::string error;
+    //        auto&&      asset_json = Json::parse(asset_json_text, error);
+    //        if (!error.empty())
+    //        {
+    //            assert(0);
+    //            return false;
+    //        }
+
+    //        Serializer::read(asset_json, out_asset);
+    //        return true;
+    //    }
+
+    //    template<typename AssetType>
+    //    bool saveAsset(const AssetType& out_asset, const std::string& asset_url) const
+    //    {
+    //        std::ofstream asset_json_file(getFullPath(asset_url));
+    //        if (!asset_json_file)
+    //        {
+    //            assert(0);
+    //            return false;
+    //        }
+
+    //        // write to json object and dump to string
+    //        auto&&        asset_json      = Serializer::write(out_asset);
+    //        std::string&& asset_json_text = asset_json.dump();
+
+    //        // write to file
+    //        asset_json_file << asset_json_text;
+    //        asset_json_file.flush();
+
+    //        return true;
+    //    }
+    //};
+
+    struct AssetManager
     {
-    public:
-        template<class AssetType>
-        bool loadAsset(const std::string& asset_url, AssetType& out_asset) const
+        struct RenderResources
         {
-            // read json file to string
-            std::filesystem::path asset_path = getFullPath(asset_url);
-            std::ifstream         asset_json_file(asset_path);
-            if (!asset_json_file)
-            {
-                assert(0);
-                return false;
-            }
+            std::vector<std::shared_ptr<Texture>> model_tex_vec;
+            std::vector<std::shared_ptr<Mesh>>    model_mesh_vec;
+            std::shared_ptr<Texture>              skybox_cubemap;
+            std::shared_ptr<Texture>              skybox_prefilter_cubemap;
+            std::shared_ptr<Texture>              skybox_irradiance_cubemap;
+            std::shared_ptr<Texture>              brdf_lut;
+            std::shared_ptr<Mesh>                 screen_mesh;
+            std::shared_ptr<Mesh>                 cube_mesh;
+        } render_sources;
 
-            std::stringstream buffer;
-            buffer << asset_json_file.rdbuf();
-            std::string asset_json_text(buffer.str());
 
-            // parse to json object and read to runtime res object
-            std::string error;
-            auto&&      asset_json = Json::parse(asset_json_text, error);
-            if (!error.empty())
-            {
-                assert(0);
-                return false;
-            }
 
-            Serializer::read(asset_json, out_asset);
-            return true;
-        }
-
-        template<typename AssetType>
-        bool saveAsset(const AssetType& out_asset, const std::string& asset_url) const
-        {
-            std::ofstream asset_json_file(getFullPath(asset_url));
-            if (!asset_json_file)
-            {
-                assert(0);
-                return false;
-            }
-
-            // write to json object and dump to string
-            auto&&        asset_json      = Serializer::write(out_asset);
-            std::string&& asset_json_text = asset_json.dump();
-
-            // write to file
-            asset_json_file << asset_json_text;
-            asset_json_file.flush();
-
-            return true;
-        }
     };
 
     enum ColorSpace : uint8_t

@@ -52,9 +52,9 @@ namespace Chandelier
         std::shared_ptr<VKContext>    m_context;
         std::shared_ptr<WindowSystem> m_window_system;
 
-        VkSwapchainKHR m_handle;
-        VkFormat       m_swapChainImageFormat;
-        VkExtent2D     m_swapChainExtent;
+        VkSwapchainKHR m_handle               = VK_NULL_HANDLE;
+        VkFormat       m_swapChainImageFormat = VK_FORMAT_MAX_ENUM;
+        VkExtent2D     m_swapChainExtent      = {};
 
         std::vector<VkImage>     m_swapChainImages;
         std::vector<VkImageView> m_swapChainImageViews;

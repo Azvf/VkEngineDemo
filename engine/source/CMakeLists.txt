@@ -73,8 +73,8 @@ add_executable(${PROJECT_NAME}
     ${TINY_ENGINE_RESOURCE}
 )
 
-set(GLSLC_EXE ${ENGINE_DIR}/shaders/glslc.exe)
 set(SHADERS ${ENGINE_DIR}/shaders)
+set(GLSLC_EXE ${SHADERS}/glslc.exe)
 add_custom_command(TARGET ${PROJECT_NAME}
                     POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E echo "Copying assets ${ENGINE_DIR}/assets to ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"

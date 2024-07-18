@@ -56,6 +56,8 @@ namespace Chandelier
         std::shared_ptr<ShadowmapPassInitInfo>    m_pass_info;
         std::shared_ptr<Buffer>                   m_ubo;
         std::shared_ptr<DescriptorTracker>        m_desc_tracker;
+        //std::shared_ptr<BindTable> m_bind_table;
+
     };
 
 } // namespace Chandelier

@@ -4,8 +4,10 @@
 #include <spirv_cross/spirv_glsl.hpp>
 
 #include "runtime/core/base/exception.h"
+#include "runtime/framework/global/global_context.h"
 
 #include "VkContext.h"
+#include "Texture.h"
 
 #include "common_utils.h"
 
@@ -44,6 +46,78 @@ namespace Chandelier
 
     void GraphicsPipelineShaders::UnInit() {}
 
+    void GraphicsPipelineShaders::Sync()
+    {
+        m_bind_table       = std::make_shared<BindTable>(m_context);
+        
+        BindTableCI ci  = {};
+        ci.binding_size = m_bind_meta_map.size();
+
+        m_bind_table->Initialize(ci);
+        
+        //auto& default_sampler = context->GetSampler(GPUSamplerState::default_sampler());
+
+        //size_t index = 0;
+        //m_bind_table->Bind(m_ubo.get(), Location(index++), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+        //for (auto& texture : m_pass_info->render_resources->model_tex_vec)
+        //{
+        //    m_bind_table->Bind(texture.get(), &default_sampler, Location(index++), VK_SHADER_STAGE_FRAGMENT_BIT);
+        //}
+
+        //auto& cubemap_sampler = context->GetSampler(GPUSamplerState::cubemap_sampler());
+        //m_bind_table->Bind(m_pass_info->render_resources->skybox_irradiance_cubemap.get(),
+        //                   &cubemap_sampler,
+        //                   Location(index++),
+        //                   VK_SHADER_STAGE_FRAGMENT_BIT);
+        //m_bind_table->Bind(m_pass_info->render_resources->skybox_prefilter_cubemap.get(),
+        //                   &cubemap_sampler,
+        //                   Location(index++),
+        //                   VK_SHADER_STAGE_FRAGMENT_BIT);
+        //m_bind_table->Bind(m_pass_info->render_resources->brdf_lut.get(),
+        //                   &default_sampler,
+        //                   Location(index++),
+        //                   VK_SHADER_STAGE_FRAGMENT_BIT);
+        //auto& frame_index = context->GetFrameIndex();
+        //m_bind_table->Bind(m_framebuffers[frame_index].attachments[Shadowmap_Attachment].get(),
+        //                   Location(index++),
+        //                   VK_SHADER_STAGE_FRAGMENT_BIT);
+        //m_bind_table->Sync();
+        
+        auto& default_sampler = m_context->GetSampler(GPUSamplerState::default_sampler());
+        auto& cubemap_sampler = m_context->GetSampler(GPUSamplerState::cubemap_sampler());
+
+        auto& asset_manager = g_context.GetAssetManager();
+        
+        auto& command_manager = m_context->GetCommandManager();
+        
+        for (const auto& meta : m_bind_meta_map)
+        {
+            auto& name = meta.first;
+            auto& info = meta.second;
+
+            if (info.desc_type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+            {
+
+            }
+
+        }
+    }
+
+    uint32_t GraphicsPipelineShaders::ShaderCount()
+    {
+        uint32_t count = 0;
+        for (const auto& shader : m_shaders)
+        {
+            if (shader)
+            {
+                ++count;
+            }
+        }
+
+        return count;
+    }
+
     void GraphicsPipelineShaders::InitShader(std::string_view shader_path, ShaderStage stage)
     {
         auto shader = std::make_optional<Shader>();
@@ -51,7 +125,7 @@ namespace Chandelier
         shader->Initialize(
             m_context, ShaderStageToVkStage(stage), reinterpret_cast<const uint8_t*>(code.data()), code.size());
         
-        m_shaders[stage] = shader;
+        m_shaders[stage] = std::move(shader);
 
         spirv_cross::Compiler        compiler(reinterpret_cast<const uint32_t*>(code.data()), code.size() / sizeof(uint32_t));
         spirv_cross::ShaderResources resources = compiler.get_shader_resources();
@@ -147,7 +221,7 @@ namespace Chandelier
         // m_desc_tracker->Sync();
     }
 
-    std::optional<Shader> GraphicsPipelineShaders::GetShader(ShaderStage shader) { return m_shaders[shader]; }
+    const std::optional<Shader>& GraphicsPipelineShaders::GetShader(ShaderStage shader) { return m_shaders[shader]; }
 
     VkShaderStageFlagBits GraphicsPipelineShaders::ShaderStageToVkStage(ShaderStage stage) {
         static const std::unordered_map<ShaderStage, VkShaderStageFlagBits> umap {

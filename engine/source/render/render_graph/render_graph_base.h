@@ -163,7 +163,7 @@ namespace Chandelier
                 return ResourceHandle<Texture_Resource>(handle);
             }
 
-            SubresourceHandle(const RHandle _this);
+            SubresourceHandle(const RHandle h);
 
         protected:
             RHandle               handle;
@@ -186,7 +186,7 @@ namespace Chandelier
                 return ResourceHandle<Texture_Resource>(handle);
             }
 
-            ShaderReadHandle(const RHandle  _this,
+            ShaderReadHandle(const RHandle  h,
                              const uint32_t mip_base    = 0,
                              const uint32_t mip_count   = 1,
                              const uint32_t array_base  = 0,

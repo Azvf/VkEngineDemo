@@ -16,7 +16,7 @@
 namespace Chandelier
 {
 
-    Descriptor::Descriptor(const Descriptor& other)
+    Descriptor::Descriptor(const Descriptor& other) noexcept
     {
         context    = other.context;
         set_layout = other.set_layout;
@@ -25,7 +25,7 @@ namespace Chandelier
         bindings   = other.bindings;
     }
 
-    Descriptor::Descriptor(Descriptor&& other)
+    Descriptor::Descriptor(Descriptor&& other) noexcept
     {
         context    = other.context;
         set_layout = other.set_layout;
@@ -40,7 +40,8 @@ namespace Chandelier
         other.bindings.clear();
     }
 
-    Descriptor& Descriptor::operator=(const Descriptor& other) {
+    Descriptor& Descriptor::operator=(const Descriptor& other) noexcept 
+    {
         context    = other.context;
         set_layout = other.set_layout;
         desc_set   = other.desc_set;
@@ -50,7 +51,7 @@ namespace Chandelier
         return *this;
     }
 
-    Descriptor& Descriptor::operator=(Descriptor&& other)
+    Descriptor& Descriptor::operator=(Descriptor&& other) noexcept
     {
         context    = other.context;
         set_layout = other.set_layout;
@@ -298,9 +299,9 @@ namespace Chandelier
         return set_layout;
     }
 
-    void BindTable::Initialize(uint32_t descriptor_size) { 
-        m_descriptors.resize(descriptor_size); 
-        
+    void BindTable::Initialize(const BindTableCI& ci) { 
+        // m_descriptors.resize(ci.descriptor_size);
+        m_descriptors.resize(1); 
     }
 
     void BindTable::UnInit() 

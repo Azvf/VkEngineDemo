@@ -1,5 +1,50 @@
 #include "vkContext.h"
 
+#if defined(_MSC_VER)
+#include <sdkddkver.h>
+#define WIN32_LEAN_AND_MEAN 1
+#define NOGDICAPMASKS 1
+#define NOVIRTUALKEYCODES 1
+#define NOWINMESSAGES 1
+#define NOWINSTYLES 1
+#define NOSYSMETRICS 1
+#define NOMENUS 1
+#define NOICONS 1
+#define NOKEYSTATES 1
+#define NOSYSCOMMANDS 1
+#define NORASTEROPS 1
+#define NOSHOWWINDOW 1
+#define NOATOM 1
+#define NOCLIPBOARD 1
+#define NOCOLOR 1
+#define NOCTLMGR 1
+#define NODRAWTEXT 1
+#define NOGDI 1
+#define NOKERNEL 1
+#define NOUSER 1
+#define NONLS 1
+#define NOMB 1
+#define NOMEMMGR 1
+#define NOMETAFILE 1
+#define NOMINMAX 1
+#define NOMSG 1
+#define NOOPENFILE 1
+#define NOSCROLL 1
+#define NOSERVICE 1
+#define NOSOUND 1
+#define NOTEXTMETRIC 1
+#define NOWH 1
+#define NOWINOFFSETS 1
+#define NOCOMM 1
+#define NOKANJI 1
+#define NOHELP 1
+#define NOPROFILER 1
+#define NODEFERWINDOWPOS 1
+#define NOMCX 1
+#include <Windows.h>
+#else
+#endif
+
 #include <set>
 #include <iostream>
 #include <thread>
@@ -127,6 +172,15 @@ namespace Chandelier {
 
     void VulkanInstance::Initialize()
     {
+        auto vk_layer_path = EXPAND_STR(CHANDELIER_VK_LAYER_PATH);
+
+        #if defined(_MSC_VER)
+        SetEnvironmentVariableA("VK_LAYER_PATH", vk_layer_path);
+        SetEnvironmentVariableA("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1");
+        #else()
+        assert(0);
+        #endif()
+        
         if (enable_validation_layer && !CheckValidationLayerSupport())
         {
             throw std::runtime_error("validation layers requested, but not available!");
@@ -157,7 +211,6 @@ namespace Chandelier {
                                       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         
-        // debugCreateInfo.pfnUserCallback = debugCallback;
         debugCreateInfo.pfnUserCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
                                              VkDebugUtilsMessageTypeFlagsEXT             messageType,
                                              const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -228,7 +281,7 @@ namespace Chandelier {
                 return device;
             }
         }
-
+        
         return std::nullopt;
     }
 
@@ -563,37 +616,6 @@ namespace Chandelier {
 
     QueueFamily VKContext::FindQueueFamilies(VkPhysicalDevice phy_device)
     {
-        /*QueueFamilyIndices indices;
-
-        uint32_t queue_family_count = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &queue_family_count, nullptr);
-
-        std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
-        vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &queue_family_count, queue_families.data());
-
-        for (int i = 0; i < queue_family_count; i++)
-        {
-            if (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                indices.graphics_family = i;
-            }
-            
-            VkBool32 present_support = false;
-            VULKAN_API_CALL(vkGetPhysicalDeviceSurfaceSupportKHR(phy_device, i, m_surface, &present_support));
-            if (present_support)
-            {
-                indices.present_family = i;
-            }
-
-            if (indices.isComplete())
-            {
-                break;
-            }
-
-        }
-
-        return indices;*/
-
         QueueFamily queue_family;
         
         uint32_t           queue_family_count = 0;
@@ -601,6 +623,18 @@ namespace Chandelier {
 
         std::vector<VkQueueFamilyProperties> queue_properties(queue_family_count);
         vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &queue_family_count, queue_properties.data());
+
+        if (queue_family_count < 3)
+        {
+            assert(queue_family_count);
+            assert(queue_properties.front().queueFlags &
+                   (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT));
+            queue_family.gfx_queue_index = 
+                queue_family.compute_queue_index = 
+                    queue_family.transfer_queue_index = 0;
+            
+            return queue_family;
+        }
 
         for (int index = 0; index < queue_family_count; index++) {
             const auto& queue_prop = queue_properties[index];

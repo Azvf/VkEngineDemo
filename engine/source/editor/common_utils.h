@@ -7,6 +7,9 @@ namespace Chandelier
 {
     namespace fs = std::filesystem;
 
+    #define EXPAND_STR(s) INNER_EXPAND_STR(s)
+    #define INNER_EXPAND_STR(s) #s
+
     #define SINGLETON(CLASS_NAME) class CLASS_NAME : public Singleton<CLASS_NAME> 
     template<class T>
     class Singleton

@@ -196,7 +196,7 @@ namespace Chandelier
         VulkanInstancePtr m_vk_instance;
         VulkanDevicePtr   m_vk_device;
         
-        VkSurfaceKHR m_surface;
+        VkSurfaceKHR m_surface = VK_NULL_HANDLE;
         
         CommandBufferManager  m_command_manager;
         SwapChain             m_swapchain;

@@ -17,6 +17,9 @@ namespace Chandelier
     };
 
     #define g_context RuntimeGlobalContext::GetInstance()
+    using AssetManagerPtr =  std::shared_ptr<AssetManager>;
+    using ConfigManagerPtr = std::shared_ptr<ConfigManager>;
+    
     SINGLETON(RuntimeGlobalContext)
     {
     public:
@@ -28,6 +31,9 @@ namespace Chandelier
         const fs::path& GetRootFolder() const { return m_root_folder; }
         const fs::path& GetAssetFolder() const { return m_asset_folder; }
         const fs::path& GetShaderFolder() const { return m_shader_folder; }
+
+        AssetManagerPtr GetAssetManager() { return m_asset_manager; }
+        ConfigManagerPtr GetConfigManager() { return m_config_manager; }
 
     public:
         std::shared_ptr<AssetManager>  m_asset_manager;

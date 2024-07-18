@@ -3,6 +3,7 @@
 #include "resource/asset_manager/asset_manager.h"
 #include "runtime/core/base/exception.h"
 
+#include "VkCommon.h"
 #include "Buffer.h"
 #include "Descriptor.h"
 #include "Mesh.h"
@@ -138,8 +139,8 @@ namespace Chandelier
                                     GraphicsPipelineShaders::Vertex_Shader);
         graphics_shaders.InitShader((shaders_folder / "irradiance_convolution_frag.spv").string(),
                                     GraphicsPipelineShaders::Fragment_Shader);
-        auto vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
-        auto frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
+        auto& vert_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Vertex_Shader);
+        auto& frag_shader = graphics_shaders.GetShader(GraphicsPipelineShaders::Fragment_Shader);
 
         VkPipelineShaderStageCreateInfo vert_shader_info = {};
         vert_shader_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

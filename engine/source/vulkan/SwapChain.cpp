@@ -124,8 +124,8 @@ namespace Chandelier
         const auto& device     = m_context->getDevice();
         const auto& surface    = m_context->getSurface();
 
-        VkSurfaceCapabilitiesKHR surf_caps;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phy_device, surface, &surf_caps);
+        VkSurfaceCapabilitiesKHR surf_caps = {};
+        VULKAN_API_CALL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phy_device, surface, &surf_caps));
 
         VkSurfaceFormatKHR surf_format = this->SelectSurfaceFormat();
         VkExtent2D         extent      = this->SelectExtent(surf_caps, size.x, size.y);
@@ -136,7 +136,7 @@ namespace Chandelier
             imageCount = surf_caps.maxImageCount;
         }
 
-        VkSwapchainCreateInfoKHR createInfo {};
+        VkSwapchainCreateInfoKHR createInfo = {};
         createInfo.sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         createInfo.surface = surface;
 
